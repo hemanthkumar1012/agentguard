@@ -1,0 +1,9 @@
+services:
+  api:
+    build: ./backend
+    ports:
+      - "8000:8000"
+    environment:
+      AGENTGUARD_ENV: development
+    volumes:
+      - ./backend:/app
