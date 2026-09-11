@@ -4,8 +4,8 @@ from pydantic import BaseModel, Field
 from app.data_inspector import inspect
 from app.domain import ActionRequest
 from app.identity import AgentStatus
-from app.services import agent_registry, credential_broker
 from app.risk import assess
+from app.services import agent_registry, credential_broker
 
 router = APIRouter(prefix="/security", tags=["security"])
 
@@ -31,7 +31,7 @@ def inspect_data(request: InspectionRequest):
     return inspect(request.text)
 
 
-@router.post("/credentials", status_code=201)
+@router.post("/credentials")
 def issue_credential(request: CredentialRequest):
     agent = agent_registry.get(request.agent_id)
     if agent is None:
@@ -41,9 +41,7 @@ def issue_credential(request: CredentialRequest):
     if not request.scopes.issubset(agent.permissions):
         raise HTTPException(status_code=403, detail="Credential scopes exceed agent permissions")
 
-    credential = credential_broker.issue(
-        request.agent_id, request.tool, request.scopes, request.ttl_seconds
-    )
+    credential = credential_broker.issue(request.agent_id, request.tool, request.scopes, request.ttl_seconds)
     return {
         "credential_id": credential.credential_id,
         "agent_id": credential.agent_id,
@@ -56,7 +54,4 @@ def issue_credential(request: CredentialRequest):
 
 @router.post("/credentials/{credential_id}/revoke")
 def revoke_credential(credential_id: str):
-    return {
-        "credential_id": credential_id,
-        "revoked": credential_broker.revoke(credential_id),
-    }
+    return {"credential_id": credential_id, "revoked": credential_broker.revoke(credential_id)}
