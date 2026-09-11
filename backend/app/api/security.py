@@ -1,13 +1,12 @@
 from fastapi import APIRouter
 from pydantic import BaseModel, Field
 
-from app.credentials import CredentialBroker
 from app.data_inspector import inspect
 from app.domain import ActionRequest
 from app.risk import assess
+from app.services import credential_broker
 
 router = APIRouter(prefix="/security", tags=["security"])
-credentials = CredentialBroker()
 
 
 class CredentialRequest(BaseModel):
@@ -33,7 +32,7 @@ def inspect_data(request: InspectionRequest):
 
 @router.post("/credentials")
 def issue_credential(request: CredentialRequest):
-    credential = credentials.issue(
+    credential = credential_broker.issue(
         request.agent_id, request.tool, request.scopes, request.ttl_seconds
     )
     return {
@@ -43,4 +42,12 @@ def issue_credential(request: CredentialRequest):
         "scopes": sorted(credential.scopes),
         "token": credential.token,
         "expires_at": credential.expires_at,
+    }
+
+
+@router.post("/credentials/{credential_id}/revoke")
+def revoke_credential(credential_id: str):
+    return {
+        "credential_id": credential_id,
+        "revoked": credential_broker.revoke(credential_id),
     }
