@@ -1,12 +1,12 @@
 from collections import Counter
 
-from app.identity import AgentRegistry
 from app.audit import AuditLedger
+from app.identity import AgentRegistry
 
 
 def snapshot(registry: AgentRegistry, audit: AuditLedger) -> dict:
     """Build a compact control-plane snapshot for dashboards and operators."""
-    agents = list(registry._agents.values())
+    agents = registry.list_agents()
     events = audit.list_events()
     decisions = Counter(event["decision"] for event in events)
     risk_scores = [float(event["risk_score"]) for event in events]

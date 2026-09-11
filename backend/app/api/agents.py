@@ -28,36 +28,33 @@ def _serialize_agent(agent):
 
 @router.post("", status_code=201)
 def register_agent(request: RegisterAgentRequest):
-    agent = agent_registry.register(
-        name=request.name,
-        owner=request.owner,
-        environment=request.environment,
-        permissions=request.permissions,
-    )
-    return _serialize_agent(agent)
+    return _serialize_agent(agent_registry.register(request.name, request.owner, request.environment, request.permissions))
+
+
+@router.get("")
+def list_agents():
+    return {"agents": [_serialize_agent(agent) for agent in agent_registry.list_agents()]}
 
 
 @router.get("/{agent_id}")
 def get_agent(agent_id: str):
     agent = agent_registry.get(agent_id)
     if agent is None:
-        raise HTTPException(status_code=404, detail="Agent not found")
+        raise HTTPException(status_code=404, detail="Agent identity not found")
     return _serialize_agent(agent)
 
 
 @router.post("/{agent_id}/suspend")
 def suspend_agent(agent_id: str):
     try:
-        agent = agent_registry.suspend(agent_id)
+        return _serialize_agent(agent_registry.suspend(agent_id))
     except KeyError as exc:
-        raise HTTPException(status_code=404, detail="Agent not found") from exc
-    return {"agent_id": agent.agent_id, "status": AgentStatus.SUSPENDED}
+        raise HTTPException(status_code=404, detail="Agent identity not found") from exc
 
 
 @router.post("/{agent_id}/revoke")
 def revoke_agent(agent_id: str):
     try:
-        agent = agent_registry.revoke(agent_id)
+        return _serialize_agent(agent_registry.revoke(agent_id))
     except KeyError as exc:
-        raise HTTPException(status_code=404, detail="Agent not found") from exc
-    return {"agent_id": agent.agent_id, "status": AgentStatus.REVOKED}
+        raise HTTPException(status_code=404, detail="Agent identity not found") from exc

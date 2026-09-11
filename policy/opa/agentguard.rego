@@ -1,29 +1,34 @@
-package agentguard.runtime
-
-# Policy-as-code reference implementation.
-# The FastAPI policy engine remains the local fallback; this Rego policy
-# defines the same security contract for deployments running OPA.
+package agentguard
 
 default decision := "allow"
 
 decision := "block" if {
-    input.agent_status != "active"
+  input.agent.status != "active"
 }
 
 decision := "block" if {
-    not input.permission_granted
+  not input.agent.permissions[input.action]
 }
 
 decision := "block" if {
-    input.action in {"delete", "transfer_funds", "export_data", "rotate_credentials"}
-    input.risk_score >= 80
+  input.action == "delete"
+  input.risk_score >= 80
+}
+
+decision := "block" if {
+  input.action == "export_data"
+  input.risk_score >= 80
 }
 
 decision := "require_approval" if {
-    input.data_classification in {"pii", "financial", "credentials", "secret"}
-    input.risk_score >= 60
+  input.data_classification in {"pii", "financial", "credentials", "secret"}
+  input.risk_score >= 60
 }
 
 decision := "require_approval" if {
-    input.risk_score >= 70
+  input.risk_score >= 70
 }
+
+reason := "Request satisfies AgentGuard runtime policy." if { decision == "allow" }
+reason := "Agent identity or action permission is not valid." if { decision == "block" }
+reason := "Current risk requires human approval." if { decision == "require_approval" }

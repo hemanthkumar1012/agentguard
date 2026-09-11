@@ -12,14 +12,22 @@ class AuditEvent:
     decision: str
     risk_score: float
     reason: str
+    risk_factors: tuple[str, ...]
+    data_findings: tuple[str, ...]
+    tool: str | None
+    credential_id: str | None
+    correlation_id: str | None
+    policy_version: str
+    event_type: str
     created_at: datetime
 
 
 class AuditLedger:
-    """Append-only interface for security decisions.
+    """Append-only security event ledger.
 
-    This in-memory implementation is deliberately small; the same contract
-    will later be persisted to PostgreSQL/Supabase.
+    The in-memory implementation is the local/dev adapter. Its event contract
+    is intentionally persistence-friendly so PostgreSQL/Supabase can become
+    the durable adapter without changing the enforcement layer.
     """
 
     def __init__(self) -> None:
@@ -27,13 +35,19 @@ class AuditLedger:
 
     def append(
         self,
-        *,
         agent_id: str,
         action: str,
         target: str,
         decision: str,
         risk_score: float,
         reason: str,
+        risk_factors: list[str] | tuple[str, ...] = (),
+        data_findings: list[str] | tuple[str, ...] = (),
+        tool: str | None = None,
+        credential_id: str | None = None,
+        correlation_id: str | None = None,
+        policy_version: str = "2026.09",
+        event_type: str = "authorization.decision",
     ) -> AuditEvent:
         event = AuditEvent(
             event_id=f"evt_{uuid4().hex[:16]}",
@@ -43,6 +57,13 @@ class AuditLedger:
             decision=decision,
             risk_score=risk_score,
             reason=reason,
+            risk_factors=tuple(risk_factors),
+            data_findings=tuple(data_findings),
+            tool=tool,
+            credential_id=credential_id,
+            correlation_id=correlation_id,
+            policy_version=policy_version,
+            event_type=event_type,
             created_at=datetime.now(timezone.utc),
         )
         self._events.append(event)
@@ -50,3 +71,6 @@ class AuditLedger:
 
     def list_events(self) -> list[dict]:
         return [asdict(event) for event in reversed(self._events)]
+
+    def count(self) -> int:
+        return len(self._events)

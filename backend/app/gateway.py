@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 
 from app.audit import AuditLedger
+from app.config import settings
 from app.data_inspector import inspect
 from app.domain import ActionRequest, Decision, DecisionResponse
 from app.identity import AgentRegistry, AgentStatus
@@ -30,17 +31,13 @@ class ToolGateway:
         if agent is None:
             response = self._blocked(request, "Unknown agent identity.")
         elif agent.status != AgentStatus.ACTIVE:
-            response = self._blocked(
-                request, f"Agent identity is {agent.status.value} and cannot execute tools."
-            )
+            response = self._blocked(request, f"Agent identity is {agent.status.value} and cannot execute tools.")
         elif request.action not in agent.permissions:
             response = self._blocked(request, "Agent does not have permission for this action.")
         elif request.tool and self.credentials:
             if not request.credential_id:
                 response = self._blocked(request, "Tool execution requires a scoped credential.")
-            elif not self.credentials.validate(
-                request.credential_id, request.agent_id, request.tool, request.action
-            ):
+            elif not self.credentials.validate(request.credential_id, request.agent_id, request.tool, request.action):
                 response = self._blocked(request, "Scoped credential is invalid, expired, or insufficient.")
             else:
                 response, factors, findings = self._evaluate(request)
@@ -55,6 +52,12 @@ class ToolGateway:
             decision=response.decision.value,
             risk_score=response.risk_score,
             reason=response.reason,
+            risk_factors=factors,
+            data_findings=findings,
+            tool=request.tool,
+            credential_id=request.credential_id,
+            correlation_id=request.correlation_id,
+            policy_version=settings.policy_version,
         )
         return GatewayResult(decision=response, event_id=event.event_id)
 

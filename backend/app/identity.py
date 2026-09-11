@@ -22,22 +22,10 @@ class AgentIdentity:
 
 
 class AgentRegistry:
-    """Small in-memory registry used by the first vertical slice.
-
-    The interface is intentionally storage-agnostic so it can be backed by
-    PostgreSQL/Supabase without changing the policy layer later.
-    """
-
     def __init__(self) -> None:
         self._agents: dict[str, AgentIdentity] = {}
 
-    def register(
-        self,
-        name: str,
-        owner: str,
-        environment: str = "development",
-        permissions: set[str] | None = None,
-    ) -> AgentIdentity:
+    def register(self, name, owner, environment="development", permissions=None):
         agent = AgentIdentity(
             agent_id=f"agt_{uuid4().hex[:16]}",
             name=name,
@@ -48,16 +36,19 @@ class AgentRegistry:
         self._agents[agent.agent_id] = agent
         return agent
 
-    def get(self, agent_id: str) -> AgentIdentity | None:
+    def get(self, agent_id):
         return self._agents.get(agent_id)
 
-    def suspend(self, agent_id: str) -> AgentIdentity:
+    def list_agents(self) -> list[AgentIdentity]:
+        return list(self._agents.values())
+
+    def suspend(self, agent_id):
         agent = self._agents[agent_id]
         updated = AgentIdentity(**{**agent.__dict__, "status": AgentStatus.SUSPENDED})
         self._agents[agent_id] = updated
         return updated
 
-    def revoke(self, agent_id: str) -> AgentIdentity:
+    def revoke(self, agent_id):
         agent = self._agents[agent_id]
         updated = AgentIdentity(**{**agent.__dict__, "status": AgentStatus.REVOKED})
         self._agents[agent_id] = updated
