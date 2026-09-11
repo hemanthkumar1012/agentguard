@@ -1,9 +1,10 @@
 from dataclasses import dataclass
 
-from app.audit import AuditLedger
+from app.domain import ActionRequest, Decision, DecisionResponse
 from app.identity import AgentRegistry, AgentStatus
 from app.policy import evaluate
-from app.domain import ActionRequest, Decision, DecisionResponse
+from app.risk import assess
+from app.audit import AuditLedger
 
 
 @dataclass(frozen=True)
@@ -13,7 +14,12 @@ class GatewayResult:
 
 
 class ToolGateway:
-    """Single enforcement point between agents and external tools."""
+    """Single enforcement point between agents and external tools.
+
+    The gateway authenticates the agent identity, checks its declared
+    permission, calculates contextual risk, and only then evaluates policy.
+    Every decision is recorded in the audit ledger.
+    """
 
     def __init__(self, registry: AgentRegistry, audit: AuditLedger) -> None:
         self.registry = registry
@@ -49,7 +55,9 @@ class ToolGateway:
                 risk_score=request.risk_score,
             )
         else:
-            response = evaluate(request)
+            assessment = assess(request)
+            effective_request = request.model_copy(update={"risk_score": assessment.score})
+            response = evaluate(effective_request)
 
         event = self.audit.append(
             agent_id=response.agent_id,
