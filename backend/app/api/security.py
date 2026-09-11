@@ -1,10 +1,11 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
 from app.data_inspector import inspect
 from app.domain import ActionRequest
+from app.identity import AgentStatus
 from app.risk import assess
-from app.services import credential_broker
+from app.services import agent_registry, credential_broker
 
 router = APIRouter(prefix="/security", tags=["security"])
 
@@ -32,6 +33,18 @@ def inspect_data(request: InspectionRequest):
 
 @router.post("/credentials")
 def issue_credential(request: CredentialRequest):
+    agent = agent_registry.get(request.agent_id)
+    if agent is None:
+        raise HTTPException(status_code=404, detail="Agent not found")
+    if agent.status != AgentStatus.ACTIVE:
+        raise HTTPException(status_code=409, detail="Only active agents can receive credentials")
+    unauthorized = request.scopes - agent.permissions
+    if unauthorized:
+        raise HTTPException(
+            status_code=403,
+            detail={"message": "Credential scope exceeds agent permissions", "scopes": sorted(unauthorized)},
+        )
+
     credential = credential_broker.issue(
         request.agent_id, request.tool, request.scopes, request.ttl_seconds
     )
