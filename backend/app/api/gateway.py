@@ -1,19 +1,14 @@
 from fastapi import APIRouter
 
-from app.audit import AuditLedger
 from app.domain import ActionRequest
-from app.gateway import ToolGateway
-from app.identity import AgentRegistry
+from app.services import audit_ledger, tool_gateway
 
 router = APIRouter(prefix="/gateway", tags=["gateway"])
-registry = AgentRegistry()
-audit = AuditLedger()
-gateway = ToolGateway(registry, audit)
 
 
 @router.post("/authorize")
 def authorize(request: ActionRequest):
-    result = gateway.authorize(request)
+    result = tool_gateway.authorize(request)
     return {
         "decision": result.decision,
         "event_id": result.event_id,
@@ -22,4 +17,4 @@ def authorize(request: ActionRequest):
 
 @router.get("/audit")
 def list_audit_events():
-    return {"events": audit.list_events()}
+    return {"events": audit_ledger.list_events()}
