@@ -1,17 +1,16 @@
 from fastapi import APIRouter
 
-from app.audit import AuditLedger
 from app.domain import ActionRequest, DecisionResponse
 from app.policy import evaluate
+from app.services import audit_ledger
 
 router = APIRouter(prefix="/decisions", tags=["decisions"])
-ledger = AuditLedger()
 
 
 @router.post("", response_model=DecisionResponse)
 def create_decision(request: ActionRequest) -> DecisionResponse:
     response = evaluate(request)
-    ledger.append(
+    audit_ledger.append(
         agent_id=response.agent_id,
         action=response.action,
         target=response.target,
@@ -24,4 +23,4 @@ def create_decision(request: ActionRequest) -> DecisionResponse:
 
 @router.get("/audit")
 def get_audit_events():
-    return {"events": ledger.list_events()}
+    return {"events": audit_ledger.list_events()}
