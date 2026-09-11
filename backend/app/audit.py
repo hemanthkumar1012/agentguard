@@ -23,15 +23,11 @@ class AuditEvent:
 
 
 class AuditLedger:
-    """Append-only security event ledger.
+    """Append-only security event ledger with optional durable persistence."""
 
-    The in-memory implementation is the local/dev adapter. Its event contract
-    is intentionally persistence-friendly so PostgreSQL/Supabase can become
-    the durable adapter without changing the enforcement layer.
-    """
-
-    def __init__(self) -> None:
+    def __init__(self, store=None) -> None:
         self._events: list[AuditEvent] = []
+        self.store = store
 
     def append(
         self,
@@ -67,6 +63,8 @@ class AuditLedger:
             created_at=datetime.now(timezone.utc),
         )
         self._events.append(event)
+        if self.store is not None:
+            self.store.insert_security_event(event)
         return event
 
     def list_events(self) -> list[dict]:
