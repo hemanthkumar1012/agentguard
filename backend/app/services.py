@@ -9,4 +9,4 @@ from app.identity import AgentRegistry
 agent_registry = AgentRegistry()
 audit_ledger = AuditLedger()
 credential_broker = CredentialBroker()
-tool_gateway = ToolGateway(agent_registry, audit_ledger)
+tool_gateway = ToolGateway(agent_registry, audit_ledger, credential_broker)
