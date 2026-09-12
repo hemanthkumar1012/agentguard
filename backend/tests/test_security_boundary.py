@@ -1,5 +1,6 @@
 from fastapi.testclient import TestClient
 
+from app.config import settings
 from app.main import app
 from app.services import agent_registry, credential_broker
 
@@ -41,3 +42,40 @@ def test_agents_list_endpoint():
     assert response.status_code == 200
     assert any(item["agent_id"] == agent.agent_id for item in response.json()["agents"])
     agent_registry._agents.pop(agent.agent_id, None)
+
+
+def test_protected_route_rejects_invalid_api_key(monkeypatch) -> None:
+    monkeypatch.setattr(settings, "api_key", "test-secret")
+
+    response = client.get("/api/v1/control-plane/snapshot", headers={"x-api-key": "wrong"})
+
+    assert response.status_code == 401
+    assert response.json() == {"detail": "Unauthorized"}
+    assert response.headers["x-content-type-options"] == "nosniff"
+    assert response.headers["x-frame-options"] == "DENY"
+    assert response.headers["x-request-id"].startswith("req_")
+
+
+def test_protected_route_accepts_api_key(monkeypatch) -> None:
+    monkeypatch.setattr(settings, "api_key", "test-secret")
+
+    response = client.get("/api/v1/control-plane/snapshot", headers={"x-api-key": "test-secret"})
+
+    assert response.status_code == 200
+
+
+def test_cors_preflight_is_not_blocked_by_api_key(monkeypatch) -> None:
+    monkeypatch.setattr(settings, "api_key", "test-secret")
+
+    response = client.options(
+        "/api/v1/control-plane/snapshot",
+        headers={
+            "Origin": "http://localhost:3000",
+            "Access-Control-Request-Method": "GET",
+            "Access-Control-Request-Headers": "x-api-key",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.headers["access-control-allow-origin"] == "http://localhost:3000"
+    assert "GET" in response.headers["access-control-allow-methods"]
