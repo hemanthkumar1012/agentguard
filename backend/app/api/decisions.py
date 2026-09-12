@@ -1,24 +1,15 @@
 from fastapi import APIRouter
 
 from app.domain import ActionRequest, DecisionResponse
-from app.policy import evaluate
-from app.services import audit_ledger
+from app.services import audit_ledger, tool_gateway
 
 router = APIRouter(prefix="/decisions", tags=["decisions"])
 
 
 @router.post("", response_model=DecisionResponse)
 def create_decision(request: ActionRequest) -> DecisionResponse:
-    response = evaluate(request)
-    audit_ledger.append(
-        agent_id=response.agent_id,
-        action=response.action,
-        target=response.target,
-        decision=response.decision.value,
-        risk_score=response.risk_score,
-        reason=response.reason,
-    )
-    return response
+    """Evaluate a decision through the same enforcement boundary as tool execution."""
+    return tool_gateway.authorize(request).decision
 
 
 @router.get("/audit")
