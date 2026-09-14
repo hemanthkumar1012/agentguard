@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+from datetime import datetime
 from typing import Any
 
 from supabase import Client, create_client
@@ -19,6 +20,40 @@ class SupabaseStore:
         if not url or not key:
             return None
         return cls(create_client(url, key))
+
+    def list_agents(self) -> list[dict[str, Any]]:
+        rows = self.client.table("agents").select("agent_id,name,owner,environment,status,created_at").execute().data or []
+        for row in rows:
+            permissions = (
+                self.client.table("agent_permissions")
+                .select("permission,agents!inner(agent_id)")
+                .eq("agents.agent_id", row["agent_id"])
+                .execute()
+                .data
+                or []
+            )
+            row["permissions"] = [item["permission"] for item in permissions]
+        return rows
+
+    def insert_agent(self, agent: Any) -> None:
+        self.client.table("agents").insert(
+            {
+                "agent_id": agent.agent_id,
+                "name": agent.name,
+                "owner": agent.owner,
+                "environment": agent.environment,
+                "status": agent.status.value,
+                "created_at": agent.created_at.isoformat(),
+            }
+        ).execute()
+        agent_row = self.client.table("agents").select("id").eq("agent_id", agent.agent_id).single().execute().data
+        if agent_row and agent.permissions:
+            self.client.table("agent_permissions").insert(
+                [{"agent_id": agent_row["id"], "permission": permission} for permission in agent.permissions]
+            ).execute()
+
+    def update_agent_status(self, agent_id: str, status: str) -> None:
+        self.client.table("agents").update({"status": status}).eq("agent_id", agent_id).execute()
 
     def insert_security_event(self, event: Any) -> None:
         self.client.table("security_events").insert(
