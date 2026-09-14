@@ -1,5 +1,7 @@
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
+import hashlib
+import json
 from uuid import uuid4
 
 
@@ -20,14 +22,24 @@ class AuditEvent:
     policy_version: str
     event_type: str
     created_at: datetime
+    previous_hash: str
+    event_hash: str
 
 
 class AuditLedger:
-    """Append-only security event ledger with optional durable persistence."""
+    """Append-only, hash-chained security event ledger with optional persistence."""
 
     def __init__(self, store=None) -> None:
         self._events: list[AuditEvent] = []
         self.store = store
+
+    @staticmethod
+    def _hash_payload(event: AuditEvent) -> str:
+        payload = asdict(event)
+        payload.pop("event_hash", None)
+        payload["created_at"] = event.created_at.isoformat()
+        canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"))
+        return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
     def append(
         self,
@@ -45,6 +57,7 @@ class AuditLedger:
         policy_version: str = "2026.09",
         event_type: str = "authorization.decision",
     ) -> AuditEvent:
+        previous_hash = self._events[-1].event_hash if self._events else "GENESIS"
         event = AuditEvent(
             event_id=f"evt_{uuid4().hex[:16]}",
             agent_id=agent_id,
@@ -61,11 +74,22 @@ class AuditLedger:
             policy_version=policy_version,
             event_type=event_type,
             created_at=datetime.now(timezone.utc),
+            previous_hash=previous_hash,
+            event_hash="",
         )
+        event = AuditEvent(**{**asdict(event), "event_hash": self._hash_payload(event)})
         self._events.append(event)
         if self.store is not None:
             self.store.insert_security_event(event)
         return event
+
+    def verify_integrity(self) -> bool:
+        previous_hash = "GENESIS"
+        for event in self._events:
+            if event.previous_hash != previous_hash or self._hash_payload(event) != event.event_hash:
+                return False
+            previous_hash = event.event_hash
+        return True
 
     def list_events(self) -> list[dict]:
         return [asdict(event) for event in reversed(self._events)]
