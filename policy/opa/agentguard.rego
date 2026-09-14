@@ -2,6 +2,9 @@ package agentguard
 
 default decision := "allow"
 
+high_risk_actions := {"delete", "transfer_funds", "export_data", "rotate_credentials"}
+sensitive_data := {"pii", "financial", "credentials", "secret"}
+
 decision := "block" if {
   input.agent.status != "active"
 }
@@ -11,17 +14,12 @@ decision := "block" if {
 }
 
 decision := "block" if {
-  input.action == "delete"
-  input.risk_score >= 80
-}
-
-decision := "block" if {
-  input.action == "export_data"
+  input.action in high_risk_actions
   input.risk_score >= 80
 }
 
 decision := "require_approval" if {
-  input.data_classification in {"pii", "financial", "credentials", "secret"}
+  input.data_classification in sensitive_data
   input.risk_score >= 60
 }
 
