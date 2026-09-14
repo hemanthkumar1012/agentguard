@@ -1,9 +1,10 @@
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
+from enum import Enum
 from uuid import uuid4
 
 
-class AgentStatus(str):
+class AgentStatus(str, Enum):
     ACTIVE = "active"
     SUSPENDED = "suspended"
     REVOKED = "revoked"
@@ -16,7 +17,7 @@ class AgentIdentity:
     owner: str
     environment: str
     permissions: frozenset[str] = field(default_factory=frozenset)
-    status: str = AgentStatus.ACTIVE
+    status: AgentStatus = AgentStatus.ACTIVE
     created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
 
@@ -38,7 +39,7 @@ class AgentRegistry:
                 owner=row["owner"],
                 environment=row.get("environment", "development"),
                 permissions=frozenset(row.get("permissions", [])),
-                status=row.get("status", AgentStatus.ACTIVE),
+                status=AgentStatus(row.get("status", AgentStatus.ACTIVE.value)),
                 created_at=created_at or datetime.now(timezone.utc),
             )
 
@@ -65,7 +66,7 @@ class AgentRegistry:
         agent = self._agents[agent_id]
         updated = AgentIdentity(**{**agent.__dict__, "status": AgentStatus.SUSPENDED})
         if self.store is not None:
-            self.store.update_agent_status(agent_id, AgentStatus.SUSPENDED)
+            self.store.update_agent_status(agent_id, AgentStatus.SUSPENDED.value)
         self._agents[agent_id] = updated
         return updated
 
@@ -73,6 +74,6 @@ class AgentRegistry:
         agent = self._agents[agent_id]
         updated = AgentIdentity(**{**agent.__dict__, "status": AgentStatus.REVOKED})
         if self.store is not None:
-            self.store.update_agent_status(agent_id, AgentStatus.REVOKED)
+            self.store.update_agent_status(agent_id, AgentStatus.REVOKED.value)
         self._agents[agent_id] = updated
         return updated
