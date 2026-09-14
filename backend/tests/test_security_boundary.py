@@ -64,6 +64,16 @@ def test_protected_route_accepts_api_key(monkeypatch) -> None:
     assert response.status_code == 200
 
 
+def test_production_route_fails_closed_without_api_key(monkeypatch) -> None:
+    monkeypatch.setattr(settings, "environment", "production")
+    monkeypatch.setattr(settings, "api_key", None)
+
+    response = client.get("/api/v1/control-plane/snapshot")
+
+    assert response.status_code == 503
+    assert response.json()["detail"] == "API authentication is not configured"
+
+
 def test_cors_preflight_is_not_blocked_by_api_key(monkeypatch) -> None:
     monkeypatch.setattr(settings, "api_key", "test-secret")
 
