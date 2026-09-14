@@ -47,25 +47,35 @@ def apply_security_headers(response: Response, request_id: str) -> Response:
 async def security_boundary(request: Request, call_next):
     request_id = request.headers.get("x-request-id", f"req_{uuid4().hex[:16]}")
 
-    # CORS preflight requests must reach CORSMiddleware even when the API
-    # boundary is protected by an API key. The actual request remains protected.
     is_preflight = request.method == "OPTIONS"
     protected_path = request.url.path.startswith("/api/v1") and not request.url.path.startswith("/api/v1/health")
 
-    if settings.api_key and protected_path and not is_preflight:
-        supplied = request.headers.get("x-api-key")
-        if supplied is None:
-            supplied = request.headers.get("authorization", "").removeprefix("Bearer ")
-
-        if not hmac.compare_digest(supplied, settings.api_key):
+    if protected_path and not is_preflight:
+        # Production must never silently fall back to an unauthenticated API.
+        if settings.environment.lower() == "production" and not settings.api_key:
             return apply_security_headers(
                 Response(
-                    content='{"detail":"Unauthorized"}',
-                    status_code=401,
+                    content='{"detail":"API authentication is not configured"}',
+                    status_code=503,
                     media_type="application/json",
                 ),
                 request_id,
             )
+
+        if settings.api_key:
+            supplied = request.headers.get("x-api-key")
+            if supplied is None:
+                supplied = request.headers.get("authorization", "").removeprefix("Bearer ")
+
+            if not hmac.compare_digest(supplied, settings.api_key):
+                return apply_security_headers(
+                    Response(
+                        content='{"detail":"Unauthorized"}',
+                        status_code=401,
+                        media_type="application/json",
+                    ),
+                    request_id,
+                )
 
     response: Response = await call_next(request)
     return apply_security_headers(response, request_id)
