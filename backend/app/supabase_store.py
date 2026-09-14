@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import os
-from datetime import datetime
 from typing import Any
 
 from supabase import Client, create_client
@@ -22,17 +21,17 @@ class SupabaseStore:
         return cls(create_client(url, key))
 
     def list_agents(self) -> list[dict[str, Any]]:
-        rows = self.client.table("agents").select("agent_id,name,owner,environment,status,created_at").execute().data or []
+        rows = self.client.table("agents").select("id,agent_id,name,owner,environment,status,created_at").execute().data or []
         for row in rows:
-            permissions = (
+            permission_rows = (
                 self.client.table("agent_permissions")
-                .select("permission,agents!inner(agent_id)")
-                .eq("agents.agent_id", row["agent_id"])
+                .select("permission")
+                .eq("agent_id", row["id"])
                 .execute()
                 .data
                 or []
             )
-            row["permissions"] = [item["permission"] for item in permissions]
+            row["permissions"] = [item["permission"] for item in permission_rows]
         return rows
 
     def insert_agent(self, agent: Any) -> None:
