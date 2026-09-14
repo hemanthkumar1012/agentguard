@@ -5,10 +5,10 @@ from app.identity import AgentRegistry
 from app.supabase_store import SupabaseStore
 
 
-# Shared runtime services. The Supabase adapter is optional for local tests and
-# becomes active automatically when SUPABASE_URL and SUPABASE_SERVICE_KEY exist.
+# Shared runtime services. Supabase becomes the durable adapter when both
+# server-side credentials are configured; local development remains zero-config.
 persistence = SupabaseStore.from_env()
-agent_registry = AgentRegistry()
+agent_registry = AgentRegistry(store=persistence)
 audit_ledger = AuditLedger(store=persistence)
 credential_broker = CredentialBroker()
 tool_gateway = ToolGateway(agent_registry, audit_ledger, credential_broker)
