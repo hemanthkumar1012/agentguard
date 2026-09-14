@@ -7,12 +7,7 @@ from supabase import Client, create_client
 
 
 class SupabaseStore:
-    """Server-side persistence adapter using the Supabase service key.
-
-    The service key is read only from the runtime environment and is never
-    stored in the repository. When credentials are absent, the adapter is
-    disabled so local unit tests remain zero-config.
-    """
+    """Server-side persistence adapter using the Supabase service key."""
 
     def __init__(self, client: Client) -> None:
         self.client = client
@@ -43,6 +38,8 @@ class SupabaseStore:
                 "reason": event.reason,
                 "policy_version": event.policy_version,
                 "created_at": event.created_at.isoformat(),
+                "previous_hash": event.previous_hash,
+                "event_hash": event.event_hash,
             }
         ).execute()
 
