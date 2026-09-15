@@ -1,7 +1,7 @@
 import os
 
 from dotenv import load_dotenv
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 load_dotenv()
 
@@ -14,6 +14,8 @@ class Settings(BaseModel):
     api_key: str | None = os.getenv("AGENTGUARD_API_KEY")
     supabase_url: str | None = os.getenv("SUPABASE_URL")
     supabase_service_key: str | None = os.getenv("SUPABASE_SERVICE_KEY")
+    rate_limit_requests: int = Field(default_factory=lambda: int(os.getenv("AGENTGUARD_RATE_LIMIT", "120")), ge=1)
+    rate_limit_window_seconds: int = Field(default_factory=lambda: int(os.getenv("AGENTGUARD_RATE_LIMIT_WINDOW", "60")), ge=1)
 
     @property
     def cors_origin_list(self) -> list[str]:
