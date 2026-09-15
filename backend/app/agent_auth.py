@@ -12,9 +12,16 @@ class DelegationDecision:
 class AgentAuthorization:
     """Authorize one agent acting on behalf of another using explicit scopes."""
 
-    def __init__(self, registry: AgentRegistry) -> None:
+    def __init__(self, registry: AgentRegistry, store=None) -> None:
         self.registry = registry
+        self.store = store
         self._delegations: dict[tuple[str, str], frozenset[str]] = {}
+        if store is not None:
+            self._load_persisted()
+
+    def _load_persisted(self) -> None:
+        for row in self.store.list_delegations():
+            self._delegations[(row["source_agent_id"], row["target_agent_id"])] = frozenset(row.get("scopes") or [])
 
     def grant(self, source_agent_id: str, target_agent_id: str, scopes: set[str]) -> None:
         source = self.registry.get(source_agent_id)
@@ -25,7 +32,15 @@ class AgentAuthorization:
             raise ValueError("Both agents must be active")
         if not scopes.issubset(source.permissions):
             raise PermissionError("Delegated scopes exceed source agent permissions")
+        if self.store is not None:
+            self.store.upsert_delegation(source_agent_id, target_agent_id, scopes)
         self._delegations[(source_agent_id, target_agent_id)] = frozenset(scopes)
+
+    def revoke(self, source_agent_id: str, target_agent_id: str) -> bool:
+        removed = self._delegations.pop((source_agent_id, target_agent_id), None) is not None
+        if self.store is not None:
+            removed = self.store.revoke_delegation(source_agent_id, target_agent_id) or removed
+        return removed
 
     def check(self, source_agent_id: str, target_agent_id: str, action: str) -> DelegationDecision:
         source = self.registry.get(source_agent_id)
