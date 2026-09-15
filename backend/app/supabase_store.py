@@ -104,6 +104,11 @@ class SupabaseStore:
         rows = self.client.table("security_events").select("event_hash").order("created_at", desc=True).limit(1).execute().data or []
         return rows[0].get("event_hash") if rows else None
 
+    def list_security_events(self) -> list[dict[str, Any]]:
+        return self.client.table("security_events").select(
+            "event_id,agent_id,action,target,decision,risk_score,reason,risk_factors,data_findings,tool,credential_id,correlation_id,policy_version,event_type,created_at,previous_hash,event_hash"
+        ).order("created_at", desc=False).execute().data or []
+
     def insert_security_event(self, event: Any) -> None:
         self.client.table("security_events").insert({
             "event_id": event.event_id, "event_type": event.event_type, "agent_id": event.agent_id,
