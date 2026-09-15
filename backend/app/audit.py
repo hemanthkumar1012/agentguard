@@ -34,9 +34,10 @@ class AuditLedger:
         self._events: list[AuditEvent] = []
         self.store = store
         self._lock = Lock()
-        self._last_persisted_hash = None
+        self._initial_previous_hash = "GENESIS"
         if self.store is not None and hasattr(self.store, "get_last_event_hash"):
-            self._last_persisted_hash = self.store.get_last_event_hash()
+            self._initial_previous_hash = self.store.get_last_event_hash() or "GENESIS"
+        self._last_persisted_hash = self._initial_previous_hash
 
     @staticmethod
     def _hash_payload(event: AuditEvent) -> str:
@@ -63,7 +64,7 @@ class AuditLedger:
         event_type: str = "authorization.decision",
     ) -> AuditEvent:
         with self._lock:
-            previous_hash = self._events[-1].event_hash if self._events else self._last_persisted_hash or "GENESIS"
+            previous_hash = self._events[-1].event_hash if self._events else self._initial_previous_hash
             event = AuditEvent(
                 event_id=f"evt_{uuid4().hex[:16]}",
                 agent_id=agent_id,
@@ -91,11 +92,11 @@ class AuditLedger:
             return event
 
     def verify_integrity(self) -> bool:
-        previous_hash = self._last_persisted_hash if self.store is not None and not self._events else "GENESIS"
-        for index, event in enumerate(self._events):
-            expected_previous = previous_hash if index == 0 and self.store is not None else (self._events[index - 1].event_hash if index else "GENESIS")
-            if event.previous_hash != expected_previous or self._hash_payload(event) != event.event_hash:
+        previous_hash = self._initial_previous_hash
+        for event in self._events:
+            if event.previous_hash != previous_hash or self._hash_payload(event) != event.event_hash:
                 return False
+            previous_hash = event.event_hash
         return True
 
     def list_events(self) -> list[dict]:
