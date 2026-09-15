@@ -1,7 +1,8 @@
 from dataclasses import dataclass
 
+from app.config import settings
 from app.domain import ActionRequest, Decision
-from app.services import tool_gateway
+from app.services import audit_ledger, tool_gateway
 from app.tool_runtime import ToolRuntime
 
 
@@ -43,5 +44,35 @@ class MCPGateway:
         )
         if decision.decision.decision != Decision.ALLOW:
             return {"executed": False, "decision": decision.decision.model_dump(mode="json"), "event_id": decision.event_id}
-        result = self.runtime.execute(request.agent_id, request.tool, request.action, request.arguments)
-        return {"executed": True, "decision": decision.decision.model_dump(mode="json"), "event_id": decision.event_id, "result": result.output}
+
+        try:
+            result = self.runtime.execute(request.agent_id, request.tool, request.action, request.arguments)
+        except KeyError:
+            self._record_execution_error(request, decision.decision.risk_score, "Requested tool handler is not registered.")
+            raise
+        except Exception as exc:
+            self._record_execution_error(request, decision.decision.risk_score, "Authorized tool execution failed.")
+            raise RuntimeError("Tool execution failed") from exc
+
+        return {
+            "executed": True,
+            "decision": decision.decision.model_dump(mode="json"),
+            "event_id": decision.event_id,
+            "result": result.output,
+        }
+
+    @staticmethod
+    def _record_execution_error(request: MCPToolRequest, risk_score: float, reason: str) -> None:
+        audit_ledger.append(
+            agent_id=request.agent_id,
+            action=request.action,
+            target=request.target,
+            decision="execution_error",
+            risk_score=risk_score,
+            reason=reason,
+            tool=request.tool,
+            credential_id=request.credential_id,
+            correlation_id=request.correlation_id,
+            policy_version=settings.policy_version,
+            event_type="tool.execution.error",
+        )
