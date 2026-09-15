@@ -4,6 +4,7 @@ services:
     runtime: docker
     plan: starter
     region: singapore
+    numInstances: 1
     dockerfilePath: ./Dockerfile
     dockerContext: .
     healthCheckPath: /api/v1/health/ready
