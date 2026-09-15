@@ -31,7 +31,7 @@ def record_execution_error(request: ToolExecutionRequest, risk_score: float, rea
         agent_id=request.agent_id,
         action=request.action,
         target=request.target,
-        decision="execution_error",
+        decision=Decision.BLOCK.value,
         risk_score=risk_score,
         reason=reason,
         tool=request.tool,
