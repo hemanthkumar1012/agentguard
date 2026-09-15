@@ -9,7 +9,6 @@ services:
     dockerContext: .
     healthCheckPath: /api/v1/health/ready
     autoDeploy: true
-    maxShutdownDelaySeconds: 30
     envVars:
       - key: AGENTGUARD_ENV
         value: production
