@@ -25,7 +25,7 @@ class AgentRegistry:
     def __init__(self, store=None) -> None:
         self._agents: dict[str, AgentIdentity] = {}
         self.store = store
-        if self.store is not None:
+        if store is not None:
             self._load_persisted()
 
     def _load_persisted(self) -> None:
@@ -33,6 +33,7 @@ class AgentRegistry:
             created_at = row.get("created_at")
             if isinstance(created_at, str):
                 created_at = datetime.fromisoformat(created_at.replace("Z", "+00:00"))
+
             self._agents[row["agent_id"]] = AgentIdentity(
                 agent_id=row["agent_id"],
                 name=row["name"],
