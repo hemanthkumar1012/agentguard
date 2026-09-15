@@ -5,11 +5,13 @@ from app.config import settings
 from app.domain import ActionRequest, Decision
 from app.services import audit_ledger, tool_gateway
 from app.tool_runtime import ToolRuntime, echo_tool
+from app.mcp_remote import register_configured_servers
 
 router = APIRouter(prefix="/tools", tags=["tools"])
 
 runtime = ToolRuntime()
 runtime.register("demo", "echo", echo_tool)
+register_configured_servers(runtime)
 
 
 class ToolExecutionRequest(BaseModel):
@@ -23,6 +25,7 @@ class ToolExecutionRequest(BaseModel):
     credential_token: str | None = Field(default=None, min_length=1, max_length=500)
     content: str | None = Field(default=None, max_length=100_000)
     correlation_id: str | None = Field(default=None, min_length=1, max_length=100)
+    approval_id: str | None = Field(default=None, min_length=1, max_length=100)
     payload: dict = Field(default_factory=dict)
 
 
@@ -56,6 +59,7 @@ def execute_tool(request: ToolExecutionRequest):
             credential_id=request.credential_id,
             credential_token=request.credential_token,
             correlation_id=request.correlation_id,
+            approval_id=request.approval_id,
         )
     )
 

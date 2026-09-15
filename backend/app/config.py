@@ -12,6 +12,7 @@ class Settings(BaseModel):
     cors_origins: str = os.getenv("AGENTGUARD_CORS_ORIGINS", "http://localhost:3000")
     policy_version: str = os.getenv("AGENTGUARD_POLICY_VERSION", "2026.09")
     api_key: str | None = os.getenv("AGENTGUARD_API_KEY")
+    operators: str | None = os.getenv("AGENTGUARD_OPERATORS")
     supabase_url: str | None = os.getenv("SUPABASE_URL")
     supabase_service_key: str | None = os.getenv("SUPABASE_SERVICE_KEY")
     rate_limit_requests: int = Field(default_factory=lambda: int(os.getenv("AGENTGUARD_RATE_LIMIT", "120")), ge=1)
@@ -24,6 +25,11 @@ class Settings(BaseModel):
     @property
     def supabase_configured(self) -> bool:
         return bool(self.supabase_url and self.supabase_service_key)
+
+    @property
+    def operator_credentials(self):
+        from app.operator_auth import parse_operator_keys
+        return parse_operator_keys(self.operators, self.api_key)
 
 
 settings = Settings()

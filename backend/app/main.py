@@ -1,4 +1,3 @@
-import hmac
 from uuid import uuid4
 
 from fastapi import FastAPI, Request
@@ -19,6 +18,7 @@ from app.api.simulator import router as simulator_router
 from app.api.tools import router as tools_router
 from app.config import settings
 from app.rate_limit import RateLimiter
+from app.operator_auth import authenticate, can_access
 
 app = FastAPI(
     title=settings.app_name,
@@ -54,7 +54,7 @@ async def security_boundary(request: Request, call_next):
     protected_path = request.url.path.startswith("/api/v1") and not request.url.path.startswith("/api/v1/health")
 
     if protected_path and not is_preflight:
-        if settings.environment.lower() == "production" and not settings.api_key:
+        if settings.environment.lower() == "production" and not settings.operator_credentials:
             return apply_security_headers(
                 Response(
                     content='{"detail":"API authentication is not configured"}',
@@ -64,12 +64,14 @@ async def security_boundary(request: Request, call_next):
                 request_id,
             )
 
-        if settings.api_key:
+        operator = None
+        if settings.operator_credentials:
             supplied = request.headers.get("x-api-key")
             if supplied is None:
                 supplied = request.headers.get("authorization", "").removeprefix("Bearer ")
 
-            if not hmac.compare_digest(supplied, settings.api_key):
+            operator = authenticate(supplied, settings.operator_credentials)
+            if operator is None:
                 return apply_security_headers(
                     Response(
                         content='{"detail":"Unauthorized"}',
@@ -78,6 +80,18 @@ async def security_boundary(request: Request, call_next):
                     ),
                     request_id,
                 )
+
+            if not can_access(operator.role, request.method, request.url.path):
+                return apply_security_headers(
+                    Response(
+                        content='{"detail":"Operator role does not permit this operation"}',
+                        status_code=403,
+                        media_type="application/json",
+                    ),
+                    request_id,
+                )
+
+            request.state.operator_role = operator.role
 
         client_host = request.client.host if request.client else "unknown"
         allowed, retry_after = rate_limiter.allow(f"{client_host}:{request.url.path}")

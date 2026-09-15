@@ -108,3 +108,18 @@ class CredentialBroker:
         if self.store is not None:
             removed = self.store.revoke_credential(credential_id) or removed
         return removed
+
+    def list_metadata(self) -> list[dict]:
+        if self.store is not None and hasattr(self.store, "list_credentials"):
+            return self.store.list_credentials()
+        return [
+            {
+                "credential_id": credential.credential_id,
+                "agent_id": credential.agent_id,
+                "tool": credential.tool,
+                "scopes": sorted(credential.scopes),
+                "expires_at": credential.expires_at,
+                "revoked": False,
+            }
+            for credential in self._credentials.values()
+        ]

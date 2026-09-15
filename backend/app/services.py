@@ -1,4 +1,5 @@
 from app.audit import AuditLedger
+from app.approvals import ApprovalStore
 from app.credentials import CredentialBroker
 from app.gateway import ToolGateway
 from app.identity import AgentRegistry
@@ -11,4 +12,5 @@ persistence = SupabaseStore.from_env()
 agent_registry = AgentRegistry(store=persistence)
 audit_ledger = AuditLedger(store=persistence)
 credential_broker = CredentialBroker(store=persistence)
-tool_gateway = ToolGateway(agent_registry, audit_ledger, credential_broker)
+approval_store = ApprovalStore(store=persistence)
+tool_gateway = ToolGateway(agent_registry, audit_ledger, credential_broker, approval_store)

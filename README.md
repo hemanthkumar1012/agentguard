@@ -140,13 +140,17 @@ npm run dev
 
 Set `NEXT_PUBLIC_API_URL` to the API base URL if it is not `http://localhost:8000/api/v1`.
 
-### Full local infrastructure
+### API container with Supabase configuration
 
 ```bash
 docker compose up --build
 ```
 
-The Compose stack starts FastAPI and PostgreSQL. Migrations are applied by PostgreSQL initialization for a clean local database.
+The Compose stack starts the FastAPI service and passes `SUPABASE_URL` and
+`SUPABASE_SERVICE_KEY` through from the shell environment. It does not start a
+generic PostgreSQL container because the application persistence adapter uses the
+Supabase HTTP API, not a raw PostgreSQL connection. Apply the migrations explicitly
+to the configured Supabase project before setting `AGENTGUARD_ENV=production`.
 
 ## Production configuration
 
@@ -155,6 +159,7 @@ Environment variables:
 - `AGENTGUARD_ENV` — deployment environment. Set to `production` for production deployments.
 - `AGENTGUARD_CORS_ORIGINS` — comma-separated frontend origins; do not use `*` with credentialed browser access.
 - `AGENTGUARD_API_KEY` — API boundary key. It is required for protected routes in production and supports `X-API-Key` or `Authorization: Bearer ...`.
+- `AGENTGUARD_OPERATORS` — optional comma-separated `key:role` entries for `admin`, `reviewer`, or `viewer` operators. The legacy `AGENTGUARD_API_KEY`, when present, remains an `admin` key.
 - `AGENTGUARD_RATE_LIMIT` — maximum protected requests per client/path during the configured window; defaults to `120`.
 - `AGENTGUARD_RATE_LIMIT_WINDOW` — rate-limit window in seconds; defaults to `60`.
 - `AGENTGUARD_POLICY_VERSION` — policy version stamped into audit events.
@@ -162,6 +167,10 @@ Environment variables:
 - `SUPABASE_SERVICE_KEY` — server-side secret key; never expose it to the frontend or commit it to source control.
 
 Never put real provider tokens into source control. The credential broker returns an opaque token only at issuance and the production schema stores only a token hash.
+
+Role enforcement is centralized at the API boundary: viewers can read, reviewers can
+also decide approvals, and admins can perform all control-plane mutations. Production
+requires at least one configured operator credential.
 
 ## Verification
 
