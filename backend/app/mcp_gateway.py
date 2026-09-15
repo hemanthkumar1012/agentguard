@@ -13,9 +13,11 @@ class MCPToolRequest:
     target: str
     arguments: dict
     credential_id: str | None = None
+    credential_token: str | None = None
     content: str | None = None
     data_classification: str = "public"
     risk_score: float = 0
+    correlation_id: str | None = None
 
 
 class MCPGateway:
@@ -35,6 +37,8 @@ class MCPGateway:
                 content=request.content,
                 tool=request.tool,
                 credential_id=request.credential_id,
+                credential_token=request.credential_token,
+                correlation_id=request.correlation_id,
             )
         )
         if decision.decision.decision != Decision.ALLOW:
