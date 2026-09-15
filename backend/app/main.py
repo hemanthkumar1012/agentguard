@@ -18,6 +18,7 @@ from app.api.security import router as security_router
 from app.api.simulator import router as simulator_router
 from app.api.tools import router as tools_router
 from app.config import settings
+from app.rate_limit import RateLimiter
 
 app = FastAPI(
     title=settings.app_name,
@@ -32,6 +33,8 @@ app.add_middleware(
     allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["*"],
 )
+
+rate_limiter = RateLimiter(settings.rate_limit_requests, settings.rate_limit_window_seconds)
 
 
 def apply_security_headers(response: Response, request_id: str) -> Response:
@@ -51,7 +54,6 @@ async def security_boundary(request: Request, call_next):
     protected_path = request.url.path.startswith("/api/v1") and not request.url.path.startswith("/api/v1/health")
 
     if protected_path and not is_preflight:
-        # Production must never silently fall back to an unauthenticated API.
         if settings.environment.lower() == "production" and not settings.api_key:
             return apply_security_headers(
                 Response(
@@ -76,6 +78,17 @@ async def security_boundary(request: Request, call_next):
                     ),
                     request_id,
                 )
+
+        client_host = request.client.host if request.client else "unknown"
+        allowed, retry_after = rate_limiter.allow(f"{client_host}:{request.url.path}")
+        if not allowed:
+            response = Response(
+                content='{"detail":"Rate limit exceeded"}',
+                status_code=429,
+                media_type="application/json",
+                headers={"retry-after": str(retry_after)},
+            )
+            return apply_security_headers(response, request_id)
 
     response: Response = await call_next(request)
     return apply_security_headers(response, request_id)
