@@ -35,10 +35,16 @@ class ToolGateway:
         elif request.action not in agent.permissions:
             response = self._blocked(request, "Agent does not have permission for this action.")
         elif request.tool and self.credentials:
-            if not request.credential_id:
-                response = self._blocked(request, "Tool execution requires a scoped credential.")
-            elif not self.credentials.validate(request.credential_id, request.agent_id, request.tool, request.action):
-                response = self._blocked(request, "Scoped credential is invalid, expired, or insufficient.")
+            if not request.credential_id or not request.credential_token:
+                response = self._blocked(request, "Tool execution requires a scoped credential and token.")
+            elif not self.credentials.validate(
+                request.credential_id,
+                request.agent_id,
+                request.tool,
+                request.action,
+                request.credential_token,
+            ):
+                response = self._blocked(request, "Scoped credential is invalid, expired, revoked, or insufficient.")
             else:
                 response, factors, findings = self._evaluate(request)
         else:
