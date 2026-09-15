@@ -15,9 +15,11 @@ class MCPCallRequest(BaseModel):
     target: str = Field(min_length=1, max_length=500)
     arguments: dict = Field(default_factory=dict)
     credential_id: str | None = Field(default=None, min_length=1, max_length=200)
+    credential_token: str | None = Field(default=None, min_length=1, max_length=500)
     content: str | None = Field(default=None, max_length=100_000)
     data_classification: str = Field(default="public", min_length=1)
     risk_score: float = Field(default=0, ge=0, le=100)
+    correlation_id: str | None = Field(default=None, min_length=1, max_length=200)
 
 
 @router.post("/call")
