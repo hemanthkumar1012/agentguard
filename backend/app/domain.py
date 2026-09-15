@@ -18,6 +18,7 @@ class ActionRequest(BaseModel):
     content: str | None = Field(default=None, max_length=100_000)
     tool: str | None = Field(default=None, min_length=1, max_length=100)
     credential_id: str | None = Field(default=None, min_length=1, max_length=200)
+    credential_token: str | None = Field(default=None, min_length=1, max_length=500)
     correlation_id: str | None = Field(default=None, min_length=1, max_length=100)
 
 
