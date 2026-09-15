@@ -7,10 +7,7 @@ from app.risk import assess
 
 
 def test_risk_engine_adds_contextual_factors():
-    result = assess(ActionRequest(
-        agent_id="agt_demo", action="export_data", target="external-crm",
-        data_classification="pii", risk_score=50,
-    ))
+    result = assess(ActionRequest(agent_id="agt_demo", action="export_data", target="external-crm", data_classification="pii", risk_score=50))
     assert result.score == 95
     assert "sensitive-data" in result.factors
     assert "high-impact-action" in result.factors
@@ -27,17 +24,16 @@ def test_data_inspector_detects_email_and_secret_marker():
 def test_scoped_credential_is_bound_to_agent_tool_and_scope():
     broker = CredentialBroker(default_ttl_seconds=300)
     credential = broker.issue("agt_1", "gmail", {"send_email"})
-    assert broker.validate(credential.credential_id, "agt_1", "gmail", "send_email")
-    assert not broker.validate(credential.credential_id, "agt_2", "gmail", "send_email")
-    assert not broker.validate(credential.credential_id, "agt_1", "drive", "send_email")
-    assert not broker.validate(credential.credential_id, "agt_1", "gmail", "delete_files")
+    assert broker.validate(credential.credential_id, "agt_1", "gmail", "send_email", credential.token)
+    assert not broker.validate(credential.credential_id, "agt_1", "gmail", "send_email", "wrong")
+    assert not broker.validate(credential.credential_id, "agt_2", "gmail", "send_email", credential.token)
+    assert not broker.validate(credential.credential_id, "agt_1", "drive", "send_email", credential.token)
+    assert not broker.validate(credential.credential_id, "agt_1", "gmail", "delete_files", credential.token)
 
 
 def test_expired_credential_is_invalid():
     broker = CredentialBroker()
     credential = broker.issue("agt_1", "gmail", {"send_email"}, ttl_seconds=30)
-    expired = credential.__class__(
-        **{**credential.__dict__, "expires_at": datetime.now(timezone.utc) - timedelta(seconds=1)}
-    )
+    expired = credential.__class__(**{**credential.__dict__, "expires_at": datetime.now(timezone.utc) - timedelta(seconds=1)})
     broker._credentials[credential.credential_id] = expired
-    assert not broker.validate(credential.credential_id, "agt_1", "gmail", "send_email")
+    assert not broker.validate(credential.credential_id, "agt_1", "gmail", "send_email", credential.token)
