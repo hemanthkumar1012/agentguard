@@ -19,6 +19,9 @@ class RateLimiter:
             requests = self._requests[key]
             while requests and requests[0] <= cutoff:
                 requests.popleft()
+            if not requests:
+                self._requests.pop(key, None)
+                requests = self._requests[key]
             if len(requests) >= self.limit:
                 retry_after = max(1, int(requests[0] + self.window_seconds - now))
                 return False, retry_after
