@@ -1,8 +1,9 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
+from app.audit import AuditLedger
 from app.domain import ActionRequest, Decision
-from app.services import tool_gateway
+from app.services import audit_ledger, tool_gateway
 from app.tool_runtime import ToolRuntime, echo_tool
 
 router = APIRouter(prefix="/tools", tags=["tools"])
@@ -48,7 +49,34 @@ def execute_tool(request: ToolExecutionRequest):
     try:
         result = runtime.execute(request.agent_id, request.tool, request.action, request.payload)
     except KeyError as exc:
+        audit_ledger.append(
+            agent_id=request.agent_id,
+            action=request.action,
+            target=request.target,
+            decision=Decision.BLOCK.value,
+            risk_score=authorization.decision.risk_score,
+            reason="Requested tool handler is not registered.",
+            tool=request.tool,
+            credential_id=request.credential_id,
+            correlation_id=request.correlation_id,
+            policy_version=authorization.decision.model_dump().get("policy_version", ""),
+            event_type="tool.execution.error",
+        )
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except Exception as exc:
+        audit_ledger.append(
+            agent_id=request.agent_id,
+            action=request.action,
+            target=request.target,
+            decision="execution_error",
+            risk_score=authorization.decision.risk_score,
+            reason="Authorized tool execution failed.",
+            tool=request.tool,
+            credential_id=request.credential_id,
+            correlation_id=request.correlation_id,
+            event_type="tool.execution.error",
+        )
+        raise HTTPException(status_code=502, detail="Tool execution failed") from exc
 
     return {
         "executed": True,
