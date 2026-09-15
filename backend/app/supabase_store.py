@@ -61,6 +61,25 @@ class SupabaseStore:
         ).eq("credential_id", credential_id).is_("revoked_at", "null").execute()
         return bool(response.data)
 
+    def list_delegations(self) -> list[dict[str, Any]]:
+        return self.client.table("agent_relationships").select(
+            "source_agent_id,target_agent_id,scopes,enabled"
+        ).eq("enabled", True).execute().data or []
+
+    def upsert_delegation(self, source_agent_id: str, target_agent_id: str, scopes) -> None:
+        self.client.table("agent_relationships").upsert({
+            "source_agent_id": source_agent_id,
+            "target_agent_id": target_agent_id,
+            "scopes": list(scopes),
+            "enabled": True,
+        }, on_conflict="source_agent_id,target_agent_id").execute()
+
+    def revoke_delegation(self, source_agent_id: str, target_agent_id: str) -> bool:
+        response = self.client.table("agent_relationships").update({
+            "enabled": False,
+        }).eq("source_agent_id", source_agent_id).eq("target_agent_id", target_agent_id).eq("enabled", True).execute()
+        return bool(response.data)
+
     def insert_approval(self, approval: Any) -> None:
         self.client.table("approvals").insert({
             "approval_id": approval.approval_id, "event_id": approval.event_id,
