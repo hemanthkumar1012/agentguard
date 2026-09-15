@@ -2,10 +2,10 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
 from app.agent_auth import AgentAuthorization
-from app.services import agent_registry
+from app.services import agent_registry, persistence
 
 router = APIRouter(prefix="/delegations", tags=["delegations"])
-authorizer = AgentAuthorization(agent_registry)
+authorizer = AgentAuthorization(agent_registry, store=persistence)
 
 
 class GrantRequest(BaseModel):
@@ -28,6 +28,11 @@ def grant(request: GrantRequest):
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except (ValueError, PermissionError) as exc:
         raise HTTPException(status_code=403, detail=str(exc)) from exc
+
+
+@router.post("/revoke")
+def revoke(request: CheckRequest):
+    return {"revoked": authorizer.revoke(request.source_agent_id, request.target_agent_id)}
 
 
 @router.post("/check")
