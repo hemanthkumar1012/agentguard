@@ -10,5 +10,5 @@ from app.supabase_store import SupabaseStore
 persistence = SupabaseStore.from_env()
 agent_registry = AgentRegistry(store=persistence)
 audit_ledger = AuditLedger(store=persistence)
-credential_broker = CredentialBroker()
+credential_broker = CredentialBroker(store=persistence)
 tool_gateway = ToolGateway(agent_registry, audit_ledger, credential_broker)
