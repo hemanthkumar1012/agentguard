@@ -42,7 +42,9 @@ class MCPGateway:
                 credential_token=request.credential_token,
                 correlation_id=request.correlation_id,
                 approval_id=request.approval_id,
-            )
+                execution_payload=request.arguments,
+            ),
+            consume_approval=True,
         )
         if decision.decision.decision != Decision.ALLOW:
             return {"executed": False, "decision": decision.decision.model_dump(mode="json"), "event_id": decision.event_id}

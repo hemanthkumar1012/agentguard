@@ -48,6 +48,13 @@ def test_approval_is_required_then_consumed_for_tool_execution():
     assert approved.json()["status"] == "approved"
 
     request["approval_id"] = approval_id
+    substituted = {**request, "payload": {"message": "different payload"}}
+    substituted_result = client.post("/api/v1/tools/execute", json=substituted)
+    assert substituted_result.status_code == 200
+    assert substituted_result.json()["executed"] is False
+    assert substituted_result.json()["decision"]["decision"] == "block"
+    assert "does not match" in substituted_result.json()["decision"]["reason"]
+
     executed = client.post("/api/v1/tools/execute", json=request)
     assert executed.status_code == 200
     assert executed.json()["executed"] is True

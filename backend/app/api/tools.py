@@ -60,7 +60,9 @@ def execute_tool(request: ToolExecutionRequest):
             credential_token=request.credential_token,
             correlation_id=request.correlation_id,
             approval_id=request.approval_id,
-        )
+            execution_payload=request.payload,
+        ),
+        consume_approval=True,
     )
 
     if authorization.decision.decision != Decision.ALLOW:

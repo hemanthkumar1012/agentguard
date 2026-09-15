@@ -25,7 +25,7 @@ class ToolGateway:
         self.credentials = credentials
         self.approvals = approvals
 
-    def authorize(self, request: ActionRequest) -> GatewayResult:
+    def authorize(self, request: ActionRequest, consume_approval: bool = False) -> GatewayResult:
         agent = self.registry.get(request.agent_id)
         factors: list[str] = []
         findings: list[str] = []
@@ -54,7 +54,10 @@ class ToolGateway:
 
         if response.decision == Decision.REQUIRE_APPROVAL and request.approval_id and self.approvals is not None:
             try:
-                self.approvals.consume(request.approval_id, request)
+                if consume_approval:
+                    self.approvals.consume(request.approval_id, request)
+                else:
+                    self.approvals.validate_approved(request.approval_id, request)
                 response = response.model_copy(
                     update={
                         "decision": Decision.ALLOW,

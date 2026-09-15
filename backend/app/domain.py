@@ -21,6 +21,7 @@ class ActionRequest(BaseModel):
     credential_token: str | None = Field(default=None, min_length=1, max_length=500)
     correlation_id: str | None = Field(default=None, min_length=1, max_length=100)
     approval_id: str | None = Field(default=None, min_length=1, max_length=100)
+    execution_payload: dict = Field(default_factory=dict)
 
 
 class DecisionResponse(BaseModel):
