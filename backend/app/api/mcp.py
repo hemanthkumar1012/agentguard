@@ -28,3 +28,5 @@ def call_tool(request: MCPCallRequest):
         return gateway.call(MCPToolRequest(**request.model_dump()))
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except RuntimeError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
