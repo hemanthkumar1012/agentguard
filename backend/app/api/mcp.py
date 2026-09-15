@@ -20,6 +20,7 @@ class MCPCallRequest(BaseModel):
     data_classification: str = Field(default="public", min_length=1)
     risk_score: float = Field(default=0, ge=0, le=100)
     correlation_id: str | None = Field(default=None, min_length=1, max_length=200)
+    approval_id: str | None = Field(default=None, min_length=1, max_length=100)
 
 
 @router.post("/call")
