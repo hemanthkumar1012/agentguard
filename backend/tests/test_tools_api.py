@@ -46,7 +46,7 @@ def test_mcp_http_endpoint_enforces_credential_proof():
     })
     assert executed.status_code == 200
     assert executed.json()["executed"] is True
-    assert executed.json()["result"]["message"] == "hello"
+    assert executed.json()["result"]["payload"]["message"] == "hello"
 
     denied = client.post("/api/v1/mcp/call", json={
         "agent_id": agent.agent_id,
