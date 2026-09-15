@@ -8,30 +8,67 @@ client = TestClient(app)
 
 
 def test_credential_api_enforces_agent_permissions():
-    response = client.post("/api/v1/agents", json={"name": "credential-test-agent", "owner": "security", "environment": "test", "permissions": ["send_email"]})
+    response = client.post(
+        "/api/v1/agents",
+        json={
+            "name": "credential-test-agent",
+            "owner": "security",
+            "environment": "test",
+            "permissions": ["send_email"],
+        },
+    )
     assert response.status_code == 201
     agent_id = response.json()["agent_id"]
 
-    denied = client.post("/api/v1/security/credentials", json={"agent_id": agent_id, "tool": "gmail", "scopes": ["delete_files"]})
+    denied = client.post(
+        "/api/v1/security/credentials",
+        json={
+            "agent_id": agent_id,
+            "tool": "gmail",
+            "scopes": ["delete_files"],
+        },
+    )
     assert denied.status_code == 403
 
-    issued = client.post("/api/v1/security/credentials", json={"agent_id": agent_id, "tool": "gmail", "scopes": ["send_email"]})
+    issued = client.post(
+        "/api/v1/security/credentials",
+        json={
+            "agent_id": agent_id,
+            "tool": "gmail",
+            "scopes": ["send_email"],
+        },
+    )
     assert issued.status_code == 200
-    credential = issued.json()
+    credential_id = issued.json()["credential_id"]
+    credential_token = issued.json()["token"]
 
-    blocked_tool_call = client.post("/api/v1/gateway/authorize", json={
-        "agent_id": agent_id, "action": "send_email", "target": "customer.example",
-        "tool": "drive", "credential_id": credential["credential_id"], "credential_token": credential["token"],
-    })
+    blocked_tool_call = client.post(
+        "/api/v1/gateway/authorize",
+        json={
+            "agent_id": agent_id,
+            "action": "send_email",
+            "target": "customer.example",
+            "tool": "drive",
+            "credential_id": credential_id,
+            "credential_token": credential_token,
+        },
+    )
     assert blocked_tool_call.status_code == 200
     assert blocked_tool_call.json()["decision"]["decision"] == "block"
 
-    allowed_tool_call = client.post("/api/v1/gateway/authorize", json={
-        "agent_id": agent_id, "action": "send_email", "target": "customer.example",
-        "tool": "gmail", "credential_id": credential["credential_id"], "credential_token": credential["token"],
-    })
+    allowed_tool_call = client.post(
+        "/api/v1/gateway/authorize",
+        json={
+            "agent_id": agent_id,
+            "action": "send_email",
+            "target": "customer.example",
+            "tool": "gmail",
+            "credential_id": credential_id,
+            "credential_token": credential_token,
+        },
+    )
     assert allowed_tool_call.status_code == 200
     assert allowed_tool_call.json()["decision"]["decision"] == "allow"
 
-    credential_broker.revoke(credential["credential_id"])
+    credential_broker.revoke(credential_id)
     agent_registry._agents.pop(agent_id, None)
