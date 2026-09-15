@@ -31,13 +31,42 @@ class AuditLedger:
     """Append-only, hash-chained security event ledger with optional persistence."""
 
     def __init__(self, store=None) -> None:
-        self._events: list[AuditEvent] = []
         self.store = store
         self._lock = Lock()
-        self._initial_previous_hash = "GENESIS"
-        if self.store is not None and hasattr(self.store, "get_last_event_hash"):
-            self._initial_previous_hash = self.store.get_last_event_hash() or "GENESIS"
-        self._last_persisted_hash = self._initial_previous_hash
+        self._events = self._load_events()
+        self._initial_previous_hash = self.store.get_last_event_hash() if self.store and not self._events else None
+        if self._initial_previous_hash is None:
+            self._initial_previous_hash = "GENESIS"
+
+    def _load_events(self) -> list[AuditEvent]:
+        if self.store is None or not hasattr(self.store, "list_security_events"):
+            return []
+        return [self._from_row(row) for row in self.store.list_security_events()]
+
+    @staticmethod
+    def _from_row(row: dict) -> AuditEvent:
+        created_at = row["created_at"]
+        if isinstance(created_at, str):
+            created_at = datetime.fromisoformat(created_at.replace("Z", "+00:00"))
+        return AuditEvent(
+            event_id=row["event_id"],
+            agent_id=row["agent_id"],
+            action=row["action"],
+            target=row["target"],
+            decision=row["decision"],
+            risk_score=float(row["risk_score"]),
+            reason=row["reason"],
+            risk_factors=tuple(row.get("risk_factors") or []),
+            data_findings=tuple(row.get("data_findings") or []),
+            tool=row.get("tool"),
+            credential_id=row.get("credential_id"),
+            correlation_id=row.get("correlation_id"),
+            policy_version=row["policy_version"],
+            event_type=row["event_type"],
+            created_at=created_at,
+            previous_hash=row["previous_hash"],
+            event_hash=row["event_hash"],
+        )
 
     @staticmethod
     def _hash_payload(event: AuditEvent) -> str:
@@ -85,10 +114,9 @@ class AuditLedger:
                 event_hash="",
             )
             event = AuditEvent(**{**asdict(event), "event_hash": self._hash_payload(event)})
-            self._events.append(event)
-            self._last_persisted_hash = event.event_hash
             if self.store is not None:
                 self.store.insert_security_event(event)
+            self._events.append(event)
             return event
 
     def verify_integrity(self) -> bool:
