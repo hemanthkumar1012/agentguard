@@ -29,3 +29,37 @@ def test_tool_execution_requires_gateway_authorization():
 
     credential_broker.revoke(credential.credential_id)
     agent_registry._agents.pop(agent.agent_id, None)
+
+
+def test_mcp_http_endpoint_enforces_credential_proof():
+    agent = agent_registry.register("mcp-http-demo", "security", environment="test", permissions={"echo"})
+    credential = credential_broker.issue(agent.agent_id, "demo", {"echo"})
+
+    executed = client.post("/api/v1/mcp/call", json={
+        "agent_id": agent.agent_id,
+        "tool": "demo",
+        "action": "echo",
+        "target": "internal-demo",
+        "credential_id": credential.credential_id,
+        "credential_token": credential.token,
+        "arguments": {"message": "hello"},
+    })
+    assert executed.status_code == 200
+    assert executed.json()["executed"] is True
+    assert executed.json()["result"]["message"] == "hello"
+
+    denied = client.post("/api/v1/mcp/call", json={
+        "agent_id": agent.agent_id,
+        "tool": "demo",
+        "action": "echo",
+        "target": "internal-demo",
+        "credential_id": credential.credential_id,
+        "credential_token": "wrong-token",
+        "arguments": {"message": "must not execute"},
+    })
+    assert denied.status_code == 200
+    assert denied.json()["executed"] is False
+    assert denied.json()["decision"]["decision"] == "block"
+
+    credential_broker.revoke(credential.credential_id)
+    agent_registry._agents.pop(agent.agent_id, None)
