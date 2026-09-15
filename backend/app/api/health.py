@@ -8,7 +8,7 @@ router = APIRouter(prefix="/health", tags=["health"])
 
 @router.get("")
 def health():
-    # Keep the compact response stable for existing integrations.
+    # Liveness only: this endpoint intentionally does not require persistence.
     return {"status": "ok", "service": "agentguard-api"}
 
 
@@ -20,12 +20,19 @@ def readiness():
         "audit_ledger": "ok" if audit_ledger.verify_integrity() else "failed",
     }
 
-    if persistence is not None:
+    if persistence is None:
+        checks["persistence"] = "failed" if settings.environment.lower() == "production" else "not_configured"
+    else:
         try:
             persistence.healthcheck()
             checks["persistence"] = "ok"
         except Exception:
             checks["persistence"] = "failed"
+
+    if settings.environment.lower() == "production" and not settings.api_key:
+        checks["api_authentication"] = "failed"
+    else:
+        checks["api_authentication"] = "ok" if settings.api_key else "development_only"
 
     if "failed" in checks.values():
         raise HTTPException(
