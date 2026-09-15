@@ -72,6 +72,7 @@ class AuditLedger:
     def _hash_payload(event: AuditEvent) -> str:
         payload = asdict(event)
         payload.pop("event_hash", None)
+        payload["risk_score"] = float(event.risk_score)
         payload["created_at"] = event.created_at.isoformat()
         canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"))
         return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
