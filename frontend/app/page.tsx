@@ -11,7 +11,6 @@ type Snapshot = {
 };
 
 const fallback: Snapshot = { agents: { total: 0, active: 0, suspended: 0, revoked: 0 }, decisions: { total: 0, allow: 0, require_approval: 0, block: 0 }, risk: { average: 0, maximum: 0, high_risk_events: 0 }, recent_events: [] };
-const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
 
 function decisionClass(decision: string) { return decision === "block" ? "danger" : decision === "require_approval" ? "warn" : "good"; }
 
@@ -20,9 +19,16 @@ export default function Home() {
   const [connected, setConnected] = useState(false);
 
   async function refresh() {
-    try { const res = await fetch(`${API}/control-plane/snapshot`, { cache: "no-store" }); if (!res.ok) throw new Error(); setData(await res.json()); setConnected(true); }
-    catch { setConnected(false); }
+    try {
+      const res = await fetch("/api/control-plane/snapshot", { cache: "no-store" });
+      if (!res.ok) throw new Error();
+      setData(await res.json());
+      setConnected(true);
+    } catch {
+      setConnected(false);
+    }
   }
+
   useEffect(() => { refresh(); const id = setInterval(refresh, 5000); return () => clearInterval(id); }, []);
 
   const riskWidth = `${Math.min(100, data.risk.average)}%`;
