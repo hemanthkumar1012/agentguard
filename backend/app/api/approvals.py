@@ -2,9 +2,10 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
 from app.approvals import ApprovalStore
+from app.services import persistence
 
 router = APIRouter(prefix="/approvals", tags=["approvals"])
-store = ApprovalStore()
+store = ApprovalStore(store=persistence)
 
 
 class CreateApprovalRequest(BaseModel):
