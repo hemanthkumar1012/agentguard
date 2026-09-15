@@ -19,7 +19,9 @@ class ToolExecutionRequest(BaseModel):
     data_classification: str = Field(default="public", min_length=1)
     risk_score: float = Field(default=0, ge=0, le=100)
     credential_id: str | None = Field(default=None, min_length=1, max_length=200)
+    credential_token: str | None = Field(default=None, min_length=1, max_length=500)
     content: str | None = Field(default=None, max_length=100_000)
+    correlation_id: str | None = Field(default=None, min_length=1, max_length=100)
     payload: dict = Field(default_factory=dict)
 
 
@@ -35,20 +37,16 @@ def execute_tool(request: ToolExecutionRequest):
             content=request.content,
             tool=request.tool,
             credential_id=request.credential_id,
+            credential_token=request.credential_token,
+            correlation_id=request.correlation_id,
         )
     )
 
     if authorization.decision.decision != Decision.ALLOW:
-        return {
-            "executed": False,
-            "decision": authorization.decision,
-            "event_id": authorization.event_id,
-        }
+        return {"executed": False, "decision": authorization.decision, "event_id": authorization.event_id}
 
     try:
-        result = runtime.execute(
-            request.agent_id, request.tool, request.action, request.payload
-        )
+        result = runtime.execute(request.agent_id, request.tool, request.action, request.payload)
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
