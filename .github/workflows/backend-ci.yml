@@ -32,3 +32,7 @@ jobs:
 
       - name: Run tests
         run: python -m pytest -q
+
+      - name: Build production API image
+        working-directory: .
+        run: docker build --tag agentguard-api:ci .
