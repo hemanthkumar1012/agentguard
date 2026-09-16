@@ -19,6 +19,7 @@ class MCPToolRequest:
     data_classification: str = "public"
     risk_score: float = 0
     correlation_id: str | None = None
+    approval_id: str | None = None
 
 
 class MCPGateway:
@@ -40,7 +41,10 @@ class MCPGateway:
                 credential_id=request.credential_id,
                 credential_token=request.credential_token,
                 correlation_id=request.correlation_id,
-            )
+                approval_id=request.approval_id,
+                execution_payload=request.arguments,
+            ),
+            consume_approval=True,
         )
         if decision.decision.decision != Decision.ALLOW:
             return {"executed": False, "decision": decision.decision.model_dump(mode="json"), "event_id": decision.event_id}

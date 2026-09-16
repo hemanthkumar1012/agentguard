@@ -4,29 +4,13 @@ services:
     ports:
       - "8000:8000"
     environment:
-      AGENTGUARD_ENV: development
-      AGENTGUARD_CORS_ORIGINS: http://localhost:3000
-    depends_on:
-      postgres:
-        condition: service_healthy
+      AGENTGUARD_ENV: ${AGENTGUARD_ENV:-development}
+      AGENTGUARD_CORS_ORIGINS: ${AGENTGUARD_CORS_ORIGINS:-http://localhost:3000}
+      AGENTGUARD_POLICY_VERSION: ${AGENTGUARD_POLICY_VERSION:-2026.09}
+      AGENTGUARD_RATE_LIMIT: ${AGENTGUARD_RATE_LIMIT:-120}
+      AGENTGUARD_RATE_LIMIT_WINDOW: ${AGENTGUARD_RATE_LIMIT_WINDOW:-60}
+      AGENTGUARD_API_KEY: ${AGENTGUARD_API_KEY:-}
+      AGENTGUARD_OPERATORS: ${AGENTGUARD_OPERATORS:-}
+      SUPABASE_URL: ${SUPABASE_URL:-}
+      SUPABASE_SERVICE_KEY: ${SUPABASE_SERVICE_KEY:-}
     restart: unless-stopped
-
-  postgres:
-    image: postgres:16-alpine
-    environment:
-      POSTGRES_DB: agentguard
-      POSTGRES_USER: agentguard
-      POSTGRES_PASSWORD: agentguard_dev_only
-    ports:
-      - "5432:5432"
-    volumes:
-      - agentguard_pgdata:/var/lib/postgresql/data
-      - ./supabase/migrations/0001_agentguard_core.sql:/docker-entrypoint-initdb.d/0001_agentguard_core.sql:ro
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U agentguard -d agentguard"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-
-volumes:
-  agentguard_pgdata:

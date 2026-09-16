@@ -26,7 +26,7 @@ class ToolRuntime:
         self._handlers[(tool, action)] = handler
 
     def execute(self, agent_id: str, tool: str, action: str, payload: dict) -> ToolResult:
-        handler = self._handlers.get((tool, action))
+        handler = self._handlers.get((tool, action)) or self._handlers.get((tool, "*"))
         if handler is None:
             raise KeyError(f"No handler registered for {tool}:{action}")
         return ToolResult(tool=tool, action=action, output=handler(agent_id, action, payload))

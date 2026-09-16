@@ -8,6 +8,12 @@ This repository is deployable as two services:
 
 The runtime does not require an AI/ML/LLM provider.
 
+Configured MCP servers can be added with `AGENTGUARD_MCP_SERVERS` using
+`name=https://host/mcp` entries and optional server-side bearer tokens in
+`AGENTGUARD_MCP_TOKENS` using `name=token` entries. Remote calls are only registered
+after AgentGuard authorization, use bounded request timeouts, and never expose the
+configured token to the browser. HTTPS is required for non-localhost endpoints.
+
 ## 1. Apply the database migrations
 
 Create a Supabase project and apply, in order:
@@ -15,11 +21,22 @@ Create a Supabase project and apply, in order:
 ```text
 supabase/migrations/0001_agentguard_core.sql
 supabase/migrations/0002_audit_integrity.sql
+supabase/migrations/0003_approval_execution_gate.sql
 ```
 
 Use the Supabase SQL editor or the Supabase CLI from your deployment environment. Do not run schema migrations from application startup; schema changes should be an explicit deployment step.
 
 The API uses the server-side Supabase service key. Never expose that key to the browser.
+
+The repository's `docker-compose.yml` is an API-container configuration, not a
+raw-PostgreSQL replacement for Supabase. Supply `SUPABASE_URL` and
+`SUPABASE_SERVICE_KEY` through the Compose environment. When those values are absent,
+the API intentionally stays in zero-config in-memory development mode.
+
+Requests that require approval return an `approval_id`. After an operator approves that
+request, the caller must retry the identical request with that `approval_id`. The approval
+is bound to the request fingerprint and is consumed after one successful authorization,
+preventing approval replay or request substitution.
 
 ## 2. Deploy the API
 

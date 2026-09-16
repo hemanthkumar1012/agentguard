@@ -52,6 +52,11 @@ def issue_credential(request: CredentialRequest):
     }
 
 
+@router.get("/credentials")
+def list_credentials():
+    return {"credentials": credential_broker.list_metadata()}
+
+
 @router.post("/credentials/{credential_id}/revoke")
 def revoke_credential(credential_id: str):
     return {"credential_id": credential_id, "revoked": credential_broker.revoke(credential_id)}

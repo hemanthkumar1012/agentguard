@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 
 from app.audit import AuditLedger
+from app.approvals import ApprovalStore
 from app.config import settings
 from app.data_inspector import inspect
 from app.domain import ActionRequest, Decision, DecisionResponse
@@ -18,12 +19,13 @@ class GatewayResult:
 class ToolGateway:
     """Single enforcement point between agents and external tools."""
 
-    def __init__(self, registry: AgentRegistry, audit: AuditLedger, credentials=None) -> None:
+    def __init__(self, registry: AgentRegistry, audit: AuditLedger, credentials=None, approvals: ApprovalStore | None = None) -> None:
         self.registry = registry
         self.audit = audit
         self.credentials = credentials
+        self.approvals = approvals
 
-    def authorize(self, request: ActionRequest) -> GatewayResult:
+    def authorize(self, request: ActionRequest, consume_approval: bool = False) -> GatewayResult:
         agent = self.registry.get(request.agent_id)
         factors: list[str] = []
         findings: list[str] = []
@@ -50,6 +52,21 @@ class ToolGateway:
         else:
             response, factors, findings = self._evaluate(request)
 
+        if response.decision == Decision.REQUIRE_APPROVAL and request.approval_id and self.approvals is not None:
+            try:
+                if consume_approval:
+                    self.approvals.consume(request.approval_id, request)
+                else:
+                    self.approvals.validate_approved(request.approval_id, request)
+                response = response.model_copy(
+                    update={
+                        "decision": Decision.ALLOW,
+                        "reason": "Human approval was granted for this exact request.",
+                    }
+                )
+            except ValueError as exc:
+                response = self._blocked(request, str(exc))
+
         response = response.model_copy(update={"risk_factors": factors, "data_findings": findings})
         event = self.audit.append(
             agent_id=response.agent_id,
@@ -65,6 +82,13 @@ class ToolGateway:
             correlation_id=request.correlation_id,
             policy_version=settings.policy_version,
         )
+        if response.decision == Decision.REQUIRE_APPROVAL and self.approvals is not None:
+            approval = self.approvals.create(
+                requested_by=request.agent_id,
+                event_id=event.event_id,
+                request_fingerprint=self.approvals.fingerprint(request),
+            )
+            response = response.model_copy(update={"approval_id": approval.approval_id})
         return GatewayResult(decision=response, event_id=event.event_id)
 
     @staticmethod

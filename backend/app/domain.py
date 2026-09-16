@@ -20,6 +20,8 @@ class ActionRequest(BaseModel):
     credential_id: str | None = Field(default=None, min_length=1, max_length=200)
     credential_token: str | None = Field(default=None, min_length=1, max_length=500)
     correlation_id: str | None = Field(default=None, min_length=1, max_length=100)
+    approval_id: str | None = Field(default=None, min_length=1, max_length=100)
+    execution_payload: dict = Field(default_factory=dict)
 
 
 class DecisionResponse(BaseModel):
@@ -31,3 +33,4 @@ class DecisionResponse(BaseModel):
     risk_score: float
     risk_factors: list[str] = Field(default_factory=list)
     data_findings: list[str] = Field(default_factory=list)
+    approval_id: str | None = None
