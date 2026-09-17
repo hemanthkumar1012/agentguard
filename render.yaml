@@ -26,3 +26,26 @@ services:
         sync: false
       - key: SUPABASE_SERVICE_KEY
         sync: false
+
+  - type: web
+    name: agentguard-console
+    runtime: docker
+    plan: free
+    region: singapore
+    numInstances: 1
+    dockerfilePath: ./frontend/Dockerfile
+    dockerContext: ./frontend
+    healthCheckPath: /
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NEXT_TELEMETRY_DISABLED
+        value: "1"
+      - key: AGENTGUARD_BACKEND_URL
+        fromService:
+          name: agentguard-api
+          type: web
+          envVarKey: RENDER_EXTERNAL_URL
+      - key: AGENTGUARD_API_KEY
+        sync: false
