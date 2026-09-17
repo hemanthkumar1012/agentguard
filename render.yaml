@@ -19,9 +19,12 @@ services:
       - key: AGENTGUARD_RATE_LIMIT_WINDOW
         value: "60"
       - key: AGENTGUARD_CORS_ORIGINS
-        sync: false
+        fromService:
+          name: agentguard-console
+          type: web
+          envVarKey: RENDER_EXTERNAL_URL
       - key: AGENTGUARD_API_KEY
-        sync: false
+        generateValue: true
       - key: SUPABASE_URL
         sync: false
       - key: SUPABASE_SERVICE_KEY
@@ -48,4 +51,7 @@ services:
           type: web
           envVarKey: RENDER_EXTERNAL_URL
       - key: AGENTGUARD_API_KEY
-        sync: false
+        fromService:
+          name: agentguard-api
+          type: web
+          envVarKey: AGENTGUARD_API_KEY
