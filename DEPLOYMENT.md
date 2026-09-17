@@ -1,10 +1,12 @@
 # AgentGuard deployment
 
-This repository is deployable as two services:
+This repository is deployable as a two-service Render stack or as split hosting:
 
 - **API:** Docker/FastAPI on Render (or any container platform).
-- **Control plane:** Next.js on Vercel (or any Node.js host).
+- **Control plane:** Next.js on Render using the included frontend Dockerfile, or on Vercel/another Node.js host.
 - **Persistence:** Supabase PostgreSQL.
+
+For the simplest end-to-end deployment, use the included `render.yaml` for **both** the API and the control plane. The Blueprint wires the frontend to the API and copies the API credential server-to-server inside Render, so the browser never receives it.
 
 The runtime does not require an AI/ML/LLM provider.
 
@@ -38,20 +40,31 @@ request, the caller must retry the identical request with that `approval_id`. Th
 is bound to the request fingerprint and is consumed after one successful authorization,
 preventing approval replay or request substitution.
 
-## 2. Deploy the API
+## 2. Deploy the complete stack on Render
 
-The repository includes `render.yaml` for Render.
-
-Required production secrets:
+The repository includes a two-service `render.yaml`:
 
 ```text
-AGENTGUARD_API_KEY=<long-random-secret>
-SUPABASE_URL=https://<project-ref>.supabase.co
-SUPABASE_SERVICE_KEY=<server-side-supabase-key>
-AGENTGUARD_CORS_ORIGINS=https://<your-frontend-domain>
+agentguard-api      → FastAPI/Docker → Supabase
+agentguard-console  → Next.js/Docker → agentguard-api
 ```
 
-Recommended runtime values:
+Render automatically wires:
+
+- `AGENTGUARD_BACKEND_URL` from the API service's `RENDER_EXTERNAL_URL`.
+- `AGENTGUARD_API_KEY` into the frontend from the API service, without copying the secret into Git.
+- `AGENTGUARD_CORS_ORIGINS` from the frontend service's `RENDER_EXTERNAL_URL`.
+
+The Blueprint generates the API key once when the service is first created. Existing values are preserved on later syncs.
+
+At first Blueprint sync, provide only these external secrets:
+
+```text
+SUPABASE_URL=https://<project-ref>.supabase.co
+SUPABASE_SERVICE_KEY=<server-side-supabase-key>
+```
+
+Recommended runtime values are already declared in the Blueprint:
 
 ```text
 AGENTGUARD_ENV=production
@@ -67,13 +80,15 @@ GET /api/v1/health
 GET /api/v1/health/ready
 ```
 
-Production readiness fails closed when persistence or API authentication is not configured, or when the audit chain is invalid.
+The frontend health check is:
 
-## 3. Deploy the Next.js control plane
+```text
+GET /
+```
 
-Create a Vercel project from this repository and set its **Root Directory** to `frontend`.
+## 3. Optional Vercel deployment
 
-The frontend requires these server-side environment variables:
+Vercel can still host the control plane separately if desired. Set the project Root Directory to `frontend` and provide these server-only variables:
 
 ```text
 AGENTGUARD_BACKEND_URL=https://<your-api-domain>
@@ -86,13 +101,9 @@ The dashboard calls `/api/control-plane/snapshot`; the Next.js server route forw
 
 ## 4. CORS and browser access
 
-Because the dashboard uses the server-side proxy, the API does not need to expose its API key to browsers. Keep `AGENTGUARD_CORS_ORIGINS` restricted to trusted origins that need direct API access.
+The dashboard uses a server-side proxy, so the API credential is not exposed to browser JavaScript. Keep `AGENTGUARD_CORS_ORIGINS` restricted to the frontend origin that needs direct API access.
 
-For a single Vercel deployment, use its exact HTTPS origin, for example:
-
-```text
-https://agentguard.example.com
-```
+The Render Blueprint automatically sets it to the exact frontend `onrender.com` URL. For a separate Vercel deployment, replace it with the exact HTTPS Vercel origin.
 
 Do not use `*` in production.
 
@@ -100,14 +111,15 @@ Do not use `*` in production.
 
 After deployment:
 
-1. Open `/api/v1/health` on the API and confirm HTTP 200.
-2. Open `/api/v1/health/ready` and confirm `status=ready` and all production checks are `ok`.
+1. Open the API `/api/v1/health` and confirm HTTP 200.
+2. Open the API `/api/v1/health/ready` and confirm `status=ready` and all production checks are `ok`.
 3. Open the frontend and confirm `API connected` is displayed.
 4. Execute an authorized tool request and confirm it appears in the forensic stream.
 5. Verify an unauthorized request returns `401` or `403` as appropriate.
 6. Verify an invalid credential cannot execute a tool.
-7. Verify audit integrity remains valid after a restart.
-8. Confirm the frontend deployment does not contain `AGENTGUARD_API_KEY` in client-side JavaScript.
+7. Verify approval is bound to the exact request and cannot be replayed.
+8. Verify audit integrity remains valid after a restart.
+9. Confirm the frontend deployment does not contain `AGENTGUARD_API_KEY` in client-side JavaScript.
 
 ## 6. Important scaling boundary
 
@@ -130,4 +142,14 @@ Then check:
 http://localhost:8000/api/v1/health
 ```
 
-Do not commit `backend/.env` or any production secrets.
+The frontend Dockerfile can be tested similarly from `frontend/`:
+
+```bash
+docker build -t agentguard-console ./frontend
+docker run --rm -p 3000:3000 \
+  -e AGENTGUARD_BACKEND_URL=https://<api-domain> \
+  -e AGENTGUARD_API_KEY=<api-key> \
+  agentguard-console
+```
+
+Do not commit local env files or any production secrets.
