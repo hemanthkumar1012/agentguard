@@ -1,0 +1,9 @@
+fastapi<1.0,>=0.116
+uvicorn[standard]<1.0,>=0.35
+pydantic<3.0,>=2.11
+supabase<3.0,>=2.18
+python-dotenv<2.0,>=1.1
+
+[test]
+pytest<9.0,>=8.4
+httpx<1.0,>=0.28

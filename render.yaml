@@ -1,0 +1,57 @@
+services:
+  - type: web
+    name: agentguard-api
+    runtime: docker
+    plan: free
+    region: singapore
+    numInstances: 1
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /api/v1/health/ready
+    autoDeploy: true
+    envVars:
+      - key: AGENTGUARD_ENV
+        value: production
+      - key: AGENTGUARD_POLICY_VERSION
+        value: 2026.09
+      - key: AGENTGUARD_RATE_LIMIT
+        value: "120"
+      - key: AGENTGUARD_RATE_LIMIT_WINDOW
+        value: "60"
+      - key: AGENTGUARD_CORS_ORIGINS
+        fromService:
+          name: agentguard-console
+          type: web
+          envVarKey: RENDER_EXTERNAL_URL
+      - key: AGENTGUARD_API_KEY
+        generateValue: true
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_KEY
+        sync: false
+
+  - type: web
+    name: agentguard-console
+    runtime: docker
+    plan: free
+    region: singapore
+    numInstances: 1
+    dockerfilePath: ./frontend/Dockerfile
+    dockerContext: ./frontend
+    healthCheckPath: /
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NEXT_TELEMETRY_DISABLED
+        value: "1"
+      - key: AGENTGUARD_BACKEND_URL
+        fromService:
+          name: agentguard-api
+          type: web
+          envVarKey: RENDER_EXTERNAL_URL
+      - key: AGENTGUARD_API_KEY
+        fromService:
+          name: agentguard-api
+          type: web
+          envVarKey: AGENTGUARD_API_KEY

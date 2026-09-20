@@ -1,0 +1,16 @@
+{
+  "name": "agentguard-vercel-wrapper",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "frontend"
+  ],
+  "scripts": {
+    "vercel-build": "cd frontend && npm run build && rm -rf ../.next && cp -R .next ../.next"
+  },
+  "dependencies": {
+    "next": "^15.5.0",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0"
+  }
+}

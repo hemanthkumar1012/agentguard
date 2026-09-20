@@ -1,0 +1,13 @@
+Metadata-Version: 2.4
+Name: agentguard-api
+Version: 0.1.0
+Summary: Runtime security and authorization control plane for AI agents
+Requires-Python: >=3.11
+Requires-Dist: fastapi<1.0,>=0.116
+Requires-Dist: uvicorn[standard]<1.0,>=0.35
+Requires-Dist: pydantic<3.0,>=2.11
+Requires-Dist: supabase<3.0,>=2.18
+Requires-Dist: python-dotenv<2.0,>=1.1
+Provides-Extra: test
+Requires-Dist: pytest<9.0,>=8.4; extra == "test"
+Requires-Dist: httpx<1.0,>=0.28; extra == "test"
