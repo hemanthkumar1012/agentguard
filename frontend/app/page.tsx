@@ -1,11 +1,15 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import { 
   LayoutDashboard, Users, Activity, CheckCircle2, 
   ShieldAlert, Key, Network, Target, ShieldCheck, 
   AlertTriangle, XCircle, RefreshCw 
 } from "lucide-react";
+import { RiskChart } from "../components/RiskChart";
+import { TerminalStream } from "../components/TerminalStream";
+import { CommandMenu } from "../components/CommandMenu";
 
 type Event = { event_id: string; agent_id: string; action: string; target: string; decision: string; risk_score: number; reason: string; created_at: string };
 type Agent = { agent_id: string; name: string; owner: string; environment: string; permissions: string[]; status: string; created_at: string };
@@ -55,42 +59,136 @@ export default function Home() {
 
   useEffect(() => { loadSnapshot(); const id = setInterval(loadSnapshot, 5000); return () => clearInterval(id); }, []);
 
-  return <main>
-    <aside className="sidebar">
-      <div className="brand"><span className="mark">AG</span><div><strong>AgentGuard</strong><small>CONTROL PLANE</small></div></div>
-      <nav>{nav.map(item => <button key={item.id} className={view === item.id ? "active" : ""} onClick={() => loadView(item.id)}>{item.icon}{item.label}</button>)}</nav>
-      <div className="side-status"><span className={connected ? "dot live" : "dot"}></span>{connected ? "API connected" : "API offline"}</div>
-    </aside>
-    <section className="content">
-      {view === "overview" ? <Overview data={data} refresh={loadSnapshot} /> : <DetailView view={view} items={items} refresh={() => loadView(view)} />}
-    </section>
-  </main>;
+  return (
+    <main>
+      <CommandMenu setView={loadView} />
+      
+      <aside className="sidebar">
+        <div className="brand"><span className="mark">AG</span><div><strong>AgentGuard</strong><small>CONTROL PLANE</small></div></div>
+        <nav>
+          {nav.map(item => (
+            <button key={item.id} className={view === item.id ? "active" : ""} onClick={() => loadView(item.id)} style={{ position: "relative" }}>
+              {view === item.id && (
+                <motion.div 
+                  layoutId="activeTab" 
+                  style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: "3px", backgroundColor: "#3b82f6", borderRadius: "0 4px 4px 0" }}
+                  transition={{ type: "spring", stiffness: 300, damping: 30 }}
+                />
+              )}
+              <span style={{ marginLeft: view === item.id ? "8px" : "0", transition: "margin 0.2s ease", display: "flex", alignItems: "center", gap: "12px" }}>
+                {item.icon} {item.label}
+              </span>
+            </button>
+          ))}
+        </nav>
+        <div className="side-status">
+          <span className={connected ? "dot live" : "dot"}></span>
+          {connected ? "API connected" : "API offline"}
+          <span style={{ marginLeft: "auto", fontSize: "10px", color: "#52525b" }}>CMD+K</span>
+        </div>
+      </aside>
+
+      <section className="content">
+        <AnimatePresence mode="wait">
+          <motion.div 
+            key={view} 
+            initial={{ opacity: 0, y: 10 }} 
+            animate={{ opacity: 1, y: 0 }} 
+            exit={{ opacity: 0, y: -10 }} 
+            transition={{ duration: 0.2 }}
+          >
+            {view === "overview" ? <Overview data={data} refresh={loadSnapshot} /> : <DetailView view={view} items={items} refresh={() => loadView(view)} />}
+          </motion.div>
+        </AnimatePresence>
+      </section>
+    </main>
+  );
 }
 
 function Overview({ data, refresh }: { data: Snapshot; refresh: () => void }) {
-  const riskWidth = `${Math.min(100, data.risk.average)}%`;
-  return <><header><div><p className="eyebrow">RUNTIME SECURITY</p><h1>Security Overview</h1><p className="sub">Real-time authorization posture across your AI agent fleet.</p></div><button onClick={refresh}><RefreshCw size={16} /> Refresh</button></header>
-    <div className="cards"><Stat label="Registered agents" value={data.agents.total} meta={`${data.agents.active} active`} icon={<Users size={24} />} /><Stat label="Allowed actions" value={data.decisions.allow} meta={`${data.decisions.total} total decisions`} icon={<CheckCircle2 size={24} />} /><Stat label="Approval queue" value={data.decisions.require_approval} meta="Human review required" icon={<AlertTriangle size={24} />} warn /><Stat label="Blocked actions" value={data.decisions.block} meta={`${data.risk.high_risk_events} high-risk events`} icon={<XCircle size={24} />} danger /></div>
-    <div className="grid"><section className="panel risk"><PanelHead eyebrow="RISK ENGINE" title="Environment risk" badge="LIVE" /><div className="score"><strong>{Math.round(data.risk.average)}</strong><span>/100</span></div><div className="bar"><i style={{ width: riskWidth }} /></div><div className="risk-meta"><span>Average risk</span><span>Peak {Math.round(data.risk.maximum)}</span></div><p className="hint">Risk is calculated from action impact, data classification, target context and detected sensitive content.</p></section><section className="panel"><PanelHead eyebrow="AGENT FLEET" title="Identity posture" /><div className="fleet"><div><b>{data.agents.active}</b><span>Active</span></div><div><b>{data.agents.suspended}</b><span>Suspended</span></div><div><b>{data.agents.revoked}</b><span>Revoked</span></div></div><div className="mini-line"><span>Active fleet</span><b>{data.agents.total ? Math.round(data.agents.active / data.agents.total * 100) : 0}%</b></div></section></div>
-    <EventTable events={data.recent_events} />
-  </>;
+  return (
+    <>
+      <header>
+        <div>
+          <p className="eyebrow">RUNTIME SECURITY</p>
+          <h1>Security Overview</h1>
+          <p className="sub">Real-time authorization posture across your AI agent fleet.</p>
+        </div>
+        <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={refresh}>
+          <RefreshCw size={16} /> Refresh
+        </motion.button>
+      </header>
+
+      <div className="cards">
+        <Stat label="Registered agents" value={data.agents.total} meta={`${data.agents.active} active`} icon={<Users size={24} />} />
+        <Stat label="Allowed actions" value={data.decisions.allow} meta={`${data.decisions.total} total decisions`} icon={<CheckCircle2 size={24} />} />
+        <Stat label="Approval queue" value={data.decisions.require_approval} meta="Human review required" icon={<AlertTriangle size={24} />} warn />
+        <Stat label="Blocked actions" value={data.decisions.block} meta={`${data.risk.high_risk_events} high-risk events`} icon={<XCircle size={24} />} danger />
+      </div>
+
+      <div className="grid">
+        <section className="panel risk">
+          <PanelHead eyebrow="RISK ENGINE" title="Environment risk" badge="LIVE" />
+          <div className="score"><strong>{Math.round(data.risk.average)}</strong><span>/100</span></div>
+          <RiskChart />
+          <div className="risk-meta"><span>Average risk</span><span>Peak {Math.round(data.risk.maximum)}</span></div>
+          <p className="hint">Risk is calculated from action impact, data classification, target context and detected sensitive content.</p>
+        </section>
+
+        <section className="panel">
+          <PanelHead eyebrow="AGENT FLEET" title="Identity posture" />
+          <div className="fleet">
+            <div><b>{data.agents.active}</b><span>Active</span></div>
+            <div><b>{data.agents.suspended}</b><span>Suspended</span></div>
+            <div><b>{data.agents.revoked}</b><span>Revoked</span></div>
+          </div>
+          <div className="mini-line"><span>Active fleet</span><b>{data.agents.total ? Math.round(data.agents.active / data.agents.total * 100) : 0}%</b></div>
+          <TerminalStream />
+        </section>
+      </div>
+
+      <EventTable events={data.recent_events} />
+    </>
+  );
 }
 
 function DetailView({ view, items, refresh }: { view: View; items: Agent[] | Event[] | Approval[] | Credential[]; refresh: () => void }) {
   const title = nav.find(item => item.id === view)?.label ?? "Control Plane";
-  return <><header><div><p className="eyebrow">CONTROL PLANE</p><h1>{title}</h1><p className="sub">Inspect runtime state and security controls without exposing server credentials.</p></div><button onClick={refresh}><RefreshCw size={16} /> Refresh</button></header>
-    {view === "agents" && <AgentTable agents={items as Agent[]} />}
-    {view === "events" && <EventTable events={items as Event[]} />}
-    {view === "approvals" && <ApprovalTable approvals={items as Approval[]} />}
-    {view === "credentials" && <CredentialTable credentials={items as Credential[]} />}
-    {view === "policies" && <PolicyView />}
-    {view === "mcp" && <McpView />}
-    {view === "simulator" && <SimulatorView />}
-  </>;
+  return (
+    <>
+      <header>
+        <div>
+          <p className="eyebrow">CONTROL PLANE</p>
+          <h1>{title}</h1>
+          <p className="sub">Inspect runtime state and security controls without exposing server credentials.</p>
+        </div>
+        <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={refresh}>
+          <RefreshCw size={16} /> Refresh
+        </motion.button>
+      </header>
+      {view === "agents" && <AgentTable agents={items as Agent[]} />}
+      {view === "events" && <EventTable events={items as Event[]} />}
+      {view === "approvals" && <ApprovalTable approvals={items as Approval[]} />}
+      {view === "credentials" && <CredentialTable credentials={items as Credential[]} />}
+      {view === "policies" && <PolicyView />}
+      {view === "mcp" && <McpView />}
+      {view === "simulator" && <SimulatorView />}
+    </>
+  );
 }
 
-function PanelHead({ eyebrow, title, badge }: { eyebrow: string; title: string; badge?: string }) { return <div className="panel-head"><div><p className="eyebrow">{eyebrow}</p><h2>{title}</h2></div>{badge && <span className="badge">{badge}</span>}</div>; }
-function Stat({ label, value, meta, icon, warn, danger }: { label: string; value: number; meta: string; icon: React.ReactNode; warn?: boolean; danger?: boolean }) { return <div className="stat"><div className={`stat-icon ${warn ? "warn" : danger ? "danger" : ""}`}>{icon}</div><div><span>{label}</span><strong>{value.toLocaleString()}</strong><small>{meta}</small></div></div>; }
+function PanelHead({ eyebrow, title, badge }: { eyebrow: string; title: string; badge?: string }) { 
+  return <div className="panel-head"><div><p className="eyebrow">{eyebrow}</p><h2>{title}</h2></div>{badge && <span className="badge">{badge}</span>}</div>; 
+}
+function Stat({ label, value, meta, icon, warn, danger }: { label: string; value: number; meta: string; icon: React.ReactNode; warn?: boolean; danger?: boolean }) { 
+  return (
+    <motion.div className="stat" whileHover={{ y: -4, transition: { duration: 0.2 } }}>
+      <div className={`stat-icon ${warn ? "warn" : danger ? "danger" : ""}`}>{icon}</div>
+      <div><span>{label}</span><strong>{value.toLocaleString()}</strong><small>{meta}</small></div>
+    </motion.div>
+  ); 
+}
+
 function EventTable({ events }: { events: Event[] }) { return <section className="panel events"><PanelHead eyebrow="FORENSIC STREAM" title="Security decisions" badge={`${events.length} EVENTS`} />{events.length === 0 ? <div className="empty">No security events found.</div> : <div className="table">{events.map(e => <div className="event" key={e.event_id}><span className={`decision ${decisionClass(e.decision)}`}>{e.decision.replace("_", " ")}</span><div className="event-main"><b>{e.action}</b><span>{e.agent_id} → {e.target}</span></div><div className="event-risk">Risk <b>{Math.round(e.risk_score)}</b></div><div className="event-reason">{e.reason}<br />{formatDate(e.created_at)}</div></div>)}</div>}</section>; }
 function AgentTable({ agents }: { agents: Agent[] }) { return <section className="panel"><PanelHead eyebrow="IDENTITY" title="Registered agents" />{agents.length === 0 ? <div className="empty">No agents found.</div> : <div className="data-list">{agents.map(a => <div className="data-row" key={a.agent_id}><div><b>{a.name}</b><span>{a.agent_id} · {a.owner}</span></div><span className={`status ${a.status}`}>{a.status}</span><span>{a.permissions.join(", ") || "No permissions"}</span><small>{a.environment}</small></div>)}</div>}</section>; }
 function ApprovalTable({ approvals }: { approvals: Approval[] }) { return <section className="panel"><PanelHead eyebrow="HUMAN GATE" title="Approval queue" />{approvals.length === 0 ? <div className="empty">No approval requests found.</div> : <div className="data-list">{approvals.map(a => <div className="data-row" key={a.approval_id}><div><b>{a.approval_id}</b><span>Requested by {a.requested_by}</span></div><span className={`status ${a.status}`}>{a.status}</span><small>Expires {formatDate(a.expires_at)}</small></div>)}</div>}</section>; }
