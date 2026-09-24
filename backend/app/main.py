@@ -5,6 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from starlette.responses import Response
 
 from app.api.agents import router as agents_router
+from app.api.browser import router as browser_router
 from app.api.anomaly import router as anomaly_router
 from app.api.approvals import router as approvals_router
 from app.api.control_plane import router as control_plane_router
@@ -115,6 +116,7 @@ def root():
 
 app.include_router(health_router, prefix="/api/v1")
 app.include_router(agents_router, prefix="/api/v1")
+app.include_router(browser_router)
 app.include_router(decisions_router, prefix="/api/v1")
 app.include_router(gateway_router, prefix="/api/v1")
 app.include_router(security_router, prefix="/api/v1")
