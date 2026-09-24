@@ -30,53 +30,12 @@ It sits between agents and the tools/APIs they can execute, combining identity, 
 
 ## Architecture
 
-```text
- AI Agent / MCP Client
-          |
-          v
- +-----------------------+
- | Agent Identity        |---- status / permissions / delegation
- +-----------+-----------+
-             |
-             v
- +-----------------------+
- | Data + Content Scan   |---- PII / secrets / exfil indicators
- +-----------+-----------+
-             |
-             v
- +-----------------------+
- | Risk Engine           |---- contextual score + factors
- +-----------+-----------+
-             |
-             v
- +-----------------------+
- | Policy / OPA Boundary |---- ALLOW / APPROVAL / BLOCK
- +------+-----------+----+
-        |           |
-   approval      blocked
-        |           |
-        v           v
- +-------------+  Audit Event
- | Human Gate  |      |
- +------+------+      |
-        |             |
-        +------v------+
-        | Credential  |---- short-lived, scoped token
-        | Broker      |
-        +------+------+ 
-               |
-               v
-        +-------------+
-        | Tool / MCP  |
-        | Gateway     |
-        +------+------+ 
-               |
-               v
-        External APIs / Tools
-               |
-               v
-       Audit + Observability
-```
+![AgentGuard architecture flow](docs/agentguard-architecture.svg)
+
+AgentGuard follows one deterministic enforcement path: **identify → inspect → score risk → evaluate policy → approve/block → issue scoped credentials → execute → audit → persist → observe**.
+
+The runtime authorization path has no AI/ML/LLM dependency. Security decisions, data inspection, risk scoring, anomaly scoring, policy evaluation, credential scoping, and audit integrity are implemented as deterministic application logic.
+
 
 ## API surface
 
