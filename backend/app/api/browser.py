@@ -58,15 +58,12 @@ def create_browser_token(request: BrowserTokenRequest):
 @router.post("/browser/v1/inspect")
 def inspect_browser_action(request: BrowserInspectRequest, authorization: str | None = Header(default=None)):
     claims = _claims(authorization)
-    if claims["sub"] != claims["sub"]:
-        raise HTTPException(status_code=401, detail="Invalid browser token subject")
-
     action = ActionRequest(
         agent_id=claims["sub"],
         action=request.action,
         target=request.target,
         data_classification=request.data_classification,
-        risk_score=0,
+        risk_score=50,
         content=request.content,
         correlation_id=request.correlation_id,
         approval_id=request.approval_id,
