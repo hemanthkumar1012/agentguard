@@ -36,6 +36,7 @@ app.add_middleware(
 )
 
 rate_limiter = RateLimiter(settings.rate_limit_requests, settings.rate_limit_window_seconds)
+browser_rate_limiter = RateLimiter(max(30, settings.rate_limit_requests // 2), settings.rate_limit_window_seconds)
 
 
 def apply_security_headers(response: Response, request_id: str) -> Response:
@@ -53,6 +54,19 @@ async def security_boundary(request: Request, call_next):
 
     is_preflight = request.method == "OPTIONS"
     protected_path = request.url.path.startswith("/api/v1") and not request.url.path.startswith("/api/v1/health")
+    browser_path = request.url.path.startswith("/browser/v1")
+
+    if browser_path and not is_preflight:
+        client_host = request.client.host if request.client else "unknown"
+        allowed, retry_after = browser_rate_limiter.allow(f"{client_host}:{request.url.path}")
+        if not allowed:
+            response = Response(
+                content='{"detail":"Browser protection rate limit exceeded"}',
+                status_code=429,
+                media_type="application/json",
+                headers={"retry-after": str(retry_after)},
+            )
+            return apply_security_headers(response, request_id)
 
     if protected_path and not is_preflight:
         if settings.environment.lower() == "production" and not settings.operator_credentials:
