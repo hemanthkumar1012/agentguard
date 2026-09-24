@@ -73,7 +73,7 @@ async function main() {
 
     const options = await context.newPage();
     await options.goto(`chrome-extension://${extensionId}/options.html`);
-    await options.locator("#backendUrl").fill("http://127.0.0.1:8787");
+    await options.locator("#backendUrl").fill("http://localhost:8787");
     await options.locator("#agentId").fill("agt_browser_e2e");
     await options.locator("#browserToken").fill("e2e-token");
     await options.locator("#enabled").check();
@@ -82,7 +82,7 @@ async function main() {
     await options.close();
 
     const page = await context.newPage();
-    await page.goto("http://127.0.0.1:4173/test-page.html");
+    await page.goto("http://localhost:4173/test-page.html");
     const prompt = page.locator("#prompt");
     const result = page.locator("#result");
 
