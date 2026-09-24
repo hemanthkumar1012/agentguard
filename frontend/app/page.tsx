@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { 
   LayoutDashboard, Users, Activity, CheckCircle2, 
   ShieldAlert, Key, Network, Target, ShieldCheck, 
-  AlertTriangle, XCircle, RefreshCw 
+  AlertTriangle, XCircle, RefreshCw, Globe2 
 } from "lucide-react";
 import { RiskChart } from "../components/RiskChart";
 import { TerminalStream } from "../components/TerminalStream";
@@ -21,7 +21,7 @@ type Snapshot = {
   risk: { average: number; maximum: number; high_risk_events: number };
   recent_events: Event[];
 };
-type View = "overview" | "agents" | "events" | "approvals" | "policies" | "credentials" | "mcp" | "simulator";
+type View = "overview" | "agents" | "events" | "approvals" | "policies" | "credentials" | "mcp" | "simulator" | "browser";
 
 const fallback: Snapshot = { agents: { total: 0, active: 0, suspended: 0, revoked: 0 }, decisions: { total: 0, allow: 0, require_approval: 0, block: 0 }, risk: { average: 0, maximum: 0, high_risk_events: 0 }, recent_events: [] };
 const nav: { id: View; label: string; icon: React.ReactNode }[] = [
@@ -33,6 +33,7 @@ const nav: { id: View; label: string; icon: React.ReactNode }[] = [
   { id: "credentials", label: "Credentials", icon: <Key size={18} /> },
   { id: "mcp", label: "MCP Gateway", icon: <Network size={18} /> },
   { id: "simulator", label: "Attack Simulator", icon: <Target size={18} /> },
+  { id: "browser", label: "Browser Guard", icon: <Globe2 size={18} /> },
 ];
 
 function decisionClass(decision: string) { return decision === "block" ? "danger" : decision === "require_approval" ? "warn" : "good"; }
@@ -51,7 +52,7 @@ export default function Home() {
 
   async function loadView(nextView: View) {
     setView(nextView);
-    const resource = nextView === "agents" ? "agents" : nextView === "events" ? "events" : nextView === "approvals" ? "approvals" : nextView === "credentials" ? "credentials" : null;
+    const resource = nextView === "agents" || nextView === "browser" ? "agents" : nextView === "events" ? "events" : nextView === "approvals" ? "approvals" : nextView === "credentials" ? "credentials" : null;
     if (!resource) return;
     try { const res = await fetch(`/api/control-plane/${resource}`, { cache: "no-store" }); if (!res.ok) throw new Error(); const body = await res.json(); setItems(body.agents ?? body.events ?? body.approvals ?? body.credentials ?? []); }
     catch { setItems([]); }
@@ -170,6 +171,7 @@ function DetailView({ view, items, refresh }: { view: View; items: Agent[] | Eve
       {view === "events" && <EventTable events={items as Event[]} />}
       {view === "approvals" && <ApprovalTable approvals={items as Approval[]} />}
       {view === "credentials" && <CredentialTable credentials={items as Credential[]} />}
+      {view === "browser" && <BrowserGuardView agents={items as Agent[]} />}
       {view === "policies" && <PolicyView />}
       {view === "mcp" && <McpView />}
       {view === "simulator" && <SimulatorView />}
@@ -193,6 +195,72 @@ function EventTable({ events }: { events: Event[] }) { return <section className
 function AgentTable({ agents }: { agents: Agent[] }) { return <section className="panel"><PanelHead eyebrow="IDENTITY" title="Registered agents" />{agents.length === 0 ? <div className="empty">No agents found.</div> : <div className="data-list">{agents.map(a => <div className="data-row" key={a.agent_id}><div><b>{a.name}</b><span>{a.agent_id} · {a.owner}</span></div><span className={`status ${a.status}`}>{a.status}</span><span>{a.permissions.join(", ") || "No permissions"}</span><small>{a.environment}</small></div>)}</div>}</section>; }
 function ApprovalTable({ approvals }: { approvals: Approval[] }) { return <section className="panel"><PanelHead eyebrow="HUMAN GATE" title="Approval queue" />{approvals.length === 0 ? <div className="empty">No approval requests found.</div> : <div className="data-list">{approvals.map(a => <div className="data-row" key={a.approval_id}><div><b>{a.approval_id}</b><span>Requested by {a.requested_by}</span></div><span className={`status ${a.status}`}>{a.status}</span><small>Expires {formatDate(a.expires_at)}</small></div>)}</div>}</section>; }
 function CredentialTable({ credentials }: { credentials: Credential[] }) { return <section className="panel"><PanelHead eyebrow="CREDENTIAL BROKER" title="Scoped credentials" />{credentials.length === 0 ? <div className="empty">No credentials found. Tokens are never returned after issuance.</div> : <div className="data-list">{credentials.map(c => <div className="data-row" key={c.credential_id}><div><b>{c.credential_id}</b><span>{c.agent_id} · {c.tool}</span></div><span>{c.scopes.join(", ")}</span><small>{c.revoked ? "Revoked" : `Expires ${formatDate(c.expires_at)}`}</small></div>)}</div>}</section>; }
+function BrowserGuardView({ agents }: { agents: Agent[] }) {
+  const [agentId, setAgentId] = useState("");
+  const [ttlHours, setTtlHours] = useState("24");
+  const [token, setToken] = useState("");
+  const [status, setStatus] = useState("");
+
+  useEffect(() => {
+    const browserAgent = agents.find((agent) => agent.status === "active" && agent.permissions.includes("submit_prompt"));
+    if (browserAgent && !agentId) setAgentId(browserAgent.agent_id);
+  }, [agents, agentId]);
+
+  async function issueToken() {
+    setToken("");
+    setStatus("Issuing a scoped browser token…");
+    try {
+      const response = await fetch("/api/control-plane/browser-token", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ agent_id: agentId, ttl_seconds: Math.max(300, Number(ttlHours) * 3600) }),
+      });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.detail || "Token issuance failed");
+      setToken(body.token);
+      setStatus(`Token issued for ${agentId}. Copy it now; it will not be shown again by the control plane.`);
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Token issuance failed");
+    }
+  }
+
+  const eligible = agents.filter((agent) => agent.status === "active" && agent.permissions.includes("submit_prompt"));
+
+  return (
+    <section className="panel">
+      <PanelHead eyebrow="BROWSER SECURITY" title="Chrome AgentGuard" badge="MANIFEST V3" />
+      <p className="hint">Issue a scoped browser token for a dedicated agent. The permanent operator API key remains server-side; the Chrome extension only receives this short-lived browser token.</p>
+      <div className="policy-grid" style={{ marginTop: 20 }}>
+        <div><b>Prompt interception</b><span>Supported AI prompt submissions are checked before send.</span></div>
+        <div><b>Human approval</b><span>Sensitive prompts pause until the existing approval workflow allows them.</span></div>
+        <div><b>Fail closed</b><span>If AgentGuard cannot evaluate the action, the extension keeps the prompt blocked.</span></div>
+      </div>
+      <div className="callout" style={{ marginTop: 20 }}>
+        <b>Browser agent</b>
+        <select value={agentId} onChange={(event) => setAgentId(event.target.value)} style={{ marginTop: 10, width: "100%", padding: 10, borderRadius: 10 }}>
+          <option value="">Select an active agent with submit_prompt</option>
+          {eligible.map((agent) => <option key={agent.agent_id} value={agent.agent_id}>{agent.name} · {agent.agent_id}</option>)}
+        </select>
+        <div style={{ display: "flex", gap: 10, marginTop: 12 }}>
+          <input value={ttlHours} onChange={(event) => setTtlHours(event.target.value)} inputMode="numeric" min="1" max="168" style={{ width: 110, padding: 10, borderRadius: 10 }} />
+          <span style={{ alignSelf: "center", color: "#71717a", fontSize: 12 }}>token lifetime in hours</span>
+        </div>
+        <button disabled={!agentId} onClick={issueToken} style={{ marginTop: 14 }}>
+          Issue browser token
+        </button>
+      </div>
+      {token && (
+        <div className="callout" style={{ marginTop: 14 }}>
+          <b>Copy this token into the extension</b>
+          <textarea readOnly value={token} rows={5} style={{ width: "100%", marginTop: 10, padding: 10, borderRadius: 10, fontFamily: "monospace", fontSize: 12 }} />
+        </div>
+      )}
+      {status && <p className="hint" style={{ marginTop: 12 }}>{status}</p>}
+      {eligible.length === 0 && <div className="empty">Create or select an active agent with the <code>submit_prompt</code> permission first.</div>}
+    </section>
+  );
+}
+
 function PolicyView() { return <section className="panel"><PanelHead eyebrow="POLICY ENGINE" title="Deterministic enforcement rules" /><div className="policy-grid">{[["Identity", "Unknown, suspended, and revoked agents are blocked."], ["Least privilege", "The requested action must exist in the agent permission set."], ["Credentials", "Tool calls require a matching, short-lived scoped credential."], ["Risk", "Sensitive data, high-impact actions, external targets, and HTTP targets increase risk."], ["Human approval", "Sensitive requests at risk 60+ or any request at risk 70+ require approval."], ["Hard block", "High-impact actions at risk 80+ are blocked without an approval bypass."]].map(([name, text]) => <div key={name}><b>{name}</b><span>{text}</span></div>)}</div></section>; }
 function McpView() { return <section className="panel"><PanelHead eyebrow="MCP BOUNDARY" title="Authorize before execute" badge="ENFORCED" /><p className="hint">MCP calls enter the same gateway as direct tool requests. Identity, permission, scoped credentials, data inspection, risk, approval, and audit checks all run before a registered handler executes.</p><div className="callout"><b>Runtime status</b><span>HTTP MCP endpoint is available at <code>/api/v1/mcp/call</code>.</span></div></section>; }
 function SimulatorView() { return <section className="panel"><PanelHead eyebrow="RED TEAM" title="Synthetic attack scenarios" badge="SAFE" /><p className="hint">The simulator exercises authorization only. It does not call external tools, send messages, access customer records, or exfiltrate data.</p><div className="policy-grid"><div><b>Prompt injection → PII export</b><span>Expected result: block</span></div><div><b>Privilege escalation</b><span>Expected result: block</span></div><div><b>External secret exfiltration</b><span>Expected result: block</span></div></div></section>; }
