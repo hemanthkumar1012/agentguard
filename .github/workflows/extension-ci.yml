@@ -31,3 +31,17 @@ jobs:
           for file in extension/*.js; do
             node --check "$file"
           done
+
+      - name: Package extension
+        shell: bash
+        run: |
+          set -e
+          rm -f agentguard-browser-extension.zip
+          zip -r agentguard-browser-extension.zip extension -x 'extension/.DS_Store'
+
+      - name: Upload extension artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: agentguard-browser-extension
+          path: agentguard-browser-extension.zip
+          if-no-files-found: error
