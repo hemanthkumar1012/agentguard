@@ -29,12 +29,12 @@ class BrowserInspectRequest(BaseModel):
     approval_id: str | None = Field(default=None, max_length=100)
 
 
-def _claims(authorization: str | None) -> dict[str, Any]:
+def _claims(authorization: str | None, required_scope: str = "browser:inspect") -> dict[str, Any]:
     token = (authorization or "").removeprefix("Bearer ").strip()
     if not token:
         raise HTTPException(status_code=401, detail="Browser token required")
     try:
-        return verify_browser_token(token)
+        return verify_browser_token(token, required_scope=required_scope)
     except ValueError as exc:
         raise HTTPException(status_code=401, detail=str(exc)) from exc
 
@@ -52,6 +52,19 @@ def create_browser_token(request: BrowserTokenRequest):
         "scope": ["browser:inspect", "browser:approval"],
         "token": token,
         "expires_at": datetime.fromtimestamp(exp, tz=timezone.utc),
+    }
+
+
+@router.get("/browser/v1/health")
+def browser_health(authorization: str | None = Header(default=None)):
+    claims = _claims(authorization, required_scope="browser:inspect")
+    agent = agent_registry.get(claims["sub"])
+    if agent is None or agent.status != AgentStatus.ACTIVE:
+        raise HTTPException(status_code=401, detail="Browser agent is unavailable")
+    return {
+        "status": "ok",
+        "agent_id": agent.agent_id,
+        "service": "agentguard-browser-gateway",
     }
 
 
@@ -90,7 +103,7 @@ def inspect_browser_action(request: BrowserInspectRequest, authorization: str | 
 
 @router.get("/browser/v1/approvals/{approval_id}")
 def browser_approval_status(approval_id: str, authorization: str | None = Header(default=None)):
-    claims = _claims(authorization)
+    claims = _claims(authorization, required_scope="browser:approval")
     approval = approval_store.get(approval_id)
     if approval is None:
         raise HTTPException(status_code=404, detail="Approval not found")
