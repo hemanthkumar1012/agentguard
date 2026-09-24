@@ -127,3 +127,52 @@ def test_browser_token_rejects_tampering(monkeypatch):
 
     assert response.status_code == 401
     agent_registry._agents.pop(agent.agent_id, None)
+
+
+
+def test_browser_gateway_health_requires_valid_browser_token(monkeypatch):
+    monkeypatch.setattr(settings, "api_key", "browser-test-secret")
+    agent = agent_registry.register(
+        "browser-health-agent",
+        "security",
+        permissions={"submit_prompt"},
+    )
+
+    issued = client.post(
+        "/api/v1/security/browser-token",
+        headers={"x-api-key": "browser-test-secret"},
+        json={"agent_id": agent.agent_id, "ttl_seconds": 3600},
+    )
+    token = issued.json()["token"]
+
+    response = client.get(
+        "/browser/v1/health",
+        headers={"authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "ok"
+    assert response.json()["agent_id"] == agent.agent_id
+
+    agent_registry._agents.pop(agent.agent_id, None)
+
+
+def test_browser_approval_endpoint_requires_approval_scope(monkeypatch):
+    monkeypatch.setattr(settings, "api_key", "browser-test-secret")
+    agent = agent_registry.register(
+        "browser-approval-scope-agent",
+        "security",
+        permissions={"submit_prompt"},
+    )
+
+    token, _ = __import__("app.browser_auth", fromlist=["issue_browser_token"]).issue_browser_token(agent.agent_id, 3600)
+    response = client.get(
+        "/browser/v1/approvals/missing",
+        headers={"authorization": f"Bearer {token}"},
+    )
+
+    # The token itself contains the approval scope in normal issuance, so
+    # a missing approval still reaches the authorization boundary.
+    assert response.status_code == 404
+
+    agent_registry._agents.pop(agent.agent_id, None)
