@@ -103,12 +103,24 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 
   if (message?.type === "test-connection") {
-    backendRequest("/browser/v1/approvals/__agentguard_connection_test__")
-      .then(() => sendResponse({ ok: true }))
-      .catch((error) => {
-        const expected = /not found/i.test(error.message);
-        sendResponse({ ok: expected, error: expected ? "" : error.message });
+    (async () => {
+      const settings = await config();
+      if (!settings?.agentId || !settings?.browserToken) {
+        throw new Error("Enter an agent ID and browser token first");
+      }
+      const base = (settings.backendUrl || DEFAULT_BACKEND_URL).replace(/\\/$/, "");
+      const response = await fetch(`${base}/browser/v1/approvals/__agentguard_connection_test__`, {
+        headers: { authorization: `Bearer ${settings.browserToken}` },
+        cache: "no-store"
       });
+      if (response.status !== 404) {
+        const text = await response.text();
+        let body = {};
+        try { body = text ? JSON.parse(text) : {}; } catch {}
+        throw new Error(body.detail || `Token test failed (${response.status})`);
+      }
+      sendResponse({ ok: true });
+    })().catch((error) => sendResponse({ ok: false, error: error.message }));
     return true;
   }
 
