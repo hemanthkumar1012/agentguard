@@ -3,7 +3,17 @@ const AG = {
   bypass: false,
   lastComposer: null,
   badge: null,
-  overlay: null
+  overlay: null,
+  scanStartedAt: 0
+};
+
+const AI_SITE_LABELS = {
+  "chatgpt.com": "ChatGPT",
+  "chat.openai.com": "ChatGPT",
+  "claude.ai": "Claude",
+  "gemini.google.com": "Gemini",
+  "copilot.microsoft.com": "Copilot",
+  "www.perplexity.ai": "Perplexity"
 };
 
 function visible(element) {
@@ -94,8 +104,10 @@ function escapeHtml(value) {
 }
 
 function siteContext() {
+  const hostname = location.hostname;
   return {
-    site: location.hostname,
+    site: hostname,
+    provider: AI_SITE_LABELS[hostname] || "Supported AI site",
     page_url: location.href,
     page_title: document.title
   };
@@ -117,6 +129,7 @@ async function inspectPrompt(composer, trigger = "click", sendButton = null) {
   }
 
   AG.busy = true;
+  AG.scanStartedAt = Date.now();
   AG.lastComposer = composer;
   showBadge("SCANNING", "scan");
 
@@ -261,6 +274,23 @@ function looksLikeSendButton(target) {
   return /send|submit|ask|run|generate|go/.test(label) ? button : null;
 }
 
+
+
+document.addEventListener("submit", (event) => {
+  if (AG.bypass || AG.busy) return;
+  const form = event.target;
+  if (!(form instanceof HTMLFormElement)) return;
+
+  const composer = findComposer(form.querySelector(
+    "textarea, [contenteditable='true'][role='textbox'], [contenteditable='true']"
+  ));
+  if (!composer || !textOf(composer).trim()) return;
+
+  event.preventDefault();
+  event.stopImmediatePropagation();
+  inspectPrompt(composer, "submit", findSendButton(composer));
+}, true);
+
 document.addEventListener("click", (event) => {
   if (AG.bypass || AG.busy) return;
   const button = looksLikeSendButton(event.target);
@@ -283,9 +313,15 @@ document.addEventListener("keydown", (event) => {
   inspectPrompt(composer, "enter", sendButton);
 }, true);
 
-showBadge("READY", "idle");
-setInterval(async () => {
+setTimeout(async () => {
   const config = await getConfig();
-  if (!config?.enabled) showBadge("OFF", "warn");
-  else if (!AG.busy) showBadge("READY", "idle");
-}, 3000);
+  showBadge(config?.enabled && config?.agentId && config?.browserToken ? "READY" : "SETUP REQUIRED", config?.enabled ? "idle" : "warn");
+}, 0);
+
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible" && !AG.busy) {
+    getConfig().then((config) => {
+      showBadge(config?.enabled && config?.agentId && config?.browserToken ? "READY" : "SETUP REQUIRED", config?.enabled ? "idle" : "warn");
+    }).catch(() => showBadge("SETUP REQUIRED", "warn"));
+  }
+});
