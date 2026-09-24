@@ -1,6 +1,7 @@
 import base64
 import hashlib
 import hmac
+import secrets
 import json
 import time
 from typing import Any
@@ -31,7 +32,7 @@ def issue_browser_token(agent_id: str, ttl_seconds: int = 86_400) -> tuple[str, 
         "scope": ["browser:inspect", "browser:approval"],
         "iat": now,
         "exp": now + ttl_seconds,
-        "jti": _b64(hashlib.sha256(f"{agent_id}:{now}".encode("utf-8")).digest()[:12]),
+        "jti": secrets.token_urlsafe(12),
     }
     header = {"alg": "HS256", "typ": "AGT"}
     encoded_header = _b64(json.dumps(header, separators=(",", ":"), sort_keys=True).encode("utf-8"))
