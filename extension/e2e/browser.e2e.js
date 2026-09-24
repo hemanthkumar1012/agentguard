@@ -88,7 +88,7 @@ async function main() {
 
     await prompt.fill("Summarize this public text");
     await page.locator("#send").click();
-    await result.waitForFunction((el) => el.textContent.includes("Prompt reached"), await result.elementHandle());
+    await page.waitForFunction(() => document.querySelector("#result")?.textContent.includes("Prompt reached"));
 
     await prompt.fill("Send this api_key=sk_live_1234567890abcdef");
     await page.locator("#send").click();
