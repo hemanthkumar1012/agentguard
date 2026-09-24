@@ -41,7 +41,7 @@ def issue_browser_token(agent_id: str, ttl_seconds: int = 86_400) -> tuple[str, 
     return f"{unsigned}.{_sign(unsigned)}", payload["exp"]
 
 
-def verify_browser_token(token: str) -> dict[str, Any]:
+def verify_browser_token(token: str, required_scope: str = "browser:inspect") -> dict[str, Any]:
     try:
         header, payload, signature = token.split(".", 2)
         unsigned = f"{header}.{payload}"
@@ -53,8 +53,8 @@ def verify_browser_token(token: str) -> dict[str, Any]:
             raise ValueError("Invalid browser token header")
         if claims.get("iss") != "agentguard" or claims.get("aud") != "agentguard-browser":
             raise ValueError("Invalid browser token audience")
-        if "browser:inspect" not in claims.get("scope", []):
-            raise ValueError("Browser inspection scope is missing")
+        if required_scope not in claims.get("scope", []):
+            raise ValueError(f"Browser scope {required_scope} is missing")
         if int(claims.get("exp", 0)) <= int(time.time()):
             raise ValueError("Browser token has expired")
         if not claims.get("sub"):
