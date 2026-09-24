@@ -95,3 +95,25 @@ Sensitive content: REQUIRE_APPROVAL stops the interaction while the existing Age
 Policy denial: BLOCK keeps the interaction stopped and shows the reason and risk score.
 
 The extension is intentionally limited to browser-side enforcement. Native desktop agents, local processes, and arbitrary OS-level applications remain outside the browser extension boundary.
+## Deterministic browser lab
+
+For an end-to-end browser test that does not depend on a changing third-party AI DOM, serve extension/test-page.html locally:
+
+```bash
+python -m http.server 4173 --directory extension
+```
+
+Then:
+
+1. Load the extension/ folder as an unpacked extension at chrome://extensions.
+2. Configure an active AgentGuard agent with submit_prompt.
+3. Issue a browser token from the AgentGuard control plane.
+4. Paste the browser token into the extension options and enable protection.
+5. Open http://localhost:4173/test-page.html.
+6. Submit a normal prompt and confirm the simulated AI result appears only after an ALLOW decision.
+7. Submit the sample api_key=... text and confirm AgentGuard pauses the submission with REQUIRE_APPROVAL.
+8. Approve the request from the AgentGuard control plane and confirm the simulated AI receives it.
+9. Reject or let the approval expire and confirm the simulated AI never receives it.
+10. Disable the backend or use an expired/tampered browser token and confirm the extension remains blocked.
+
+This lab validates browser interception and the live backend decision path without giving the extension broad access to unrelated websites.
