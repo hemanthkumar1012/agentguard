@@ -108,7 +108,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       if (!settings?.agentId || !settings?.browserToken) {
         throw new Error("Enter an agent ID and browser token first");
       }
-      const base = (settings.backendUrl || DEFAULT_BACKEND_URL).replace(/\\/$/, "");
+      const base = (settings.backendUrl || DEFAULT_BACKEND_URL).replace(/\/$/, "");
       const response = await fetch(`${base}/browser/v1/approvals/__agentguard_connection_test__`, {
         headers: { authorization: `Bearer ${settings.browserToken}` },
         cache: "no-store"
