@@ -45,3 +45,15 @@ jobs:
           name: agentguard-browser-extension
           path: agentguard-browser-extension.zip
           if-no-files-found: error
+
+      - name: Install browser E2E dependencies
+        working-directory: extension/e2e
+        run: npm install
+
+      - name: Install Chromium
+        working-directory: extension/e2e
+        run: npx playwright install --with-deps chromium
+
+      - name: Run browser E2E
+        working-directory: extension/e2e
+        run: npm test
