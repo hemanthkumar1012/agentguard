@@ -33,7 +33,8 @@
         "https://claude.ai/*",
         "https://gemini.google.com/*",
         "https://copilot.microsoft.com/*",
-        "https://www.perplexity.ai/*"
+        "https://www.perplexity.ai/*",
+    "http://localhost:4173/*"
       ],
       "js": ["content.js"],
       "css": ["content.css"],
