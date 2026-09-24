@@ -12,7 +12,8 @@
     "https://copilot.microsoft.com/*",
     "https://www.perplexity.ai/*",
     "https://agentguard-api-gba3.onrender.com/*",
-    "http://localhost:8000/*"
+    "http://localhost:8000/*",
+    "http://localhost:4173/*"
   ],
   "background": {
     "service_worker": "service-worker.js",
@@ -34,7 +35,7 @@
         "https://gemini.google.com/*",
         "https://copilot.microsoft.com/*",
         "https://www.perplexity.ai/*",
-    "http://localhost:4173/*"
+        "http://localhost:4173/*"
       ],
       "js": ["content.js"],
       "css": ["content.css"],
