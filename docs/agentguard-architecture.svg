@@ -1,0 +1,163 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1040" viewBox="0 0 1600 1040" role="img" aria-labelledby="title desc">
+  <title id="title">How AgentGuard Works</title>
+  <desc id="desc">A deterministic runtime security flow from an AI agent through identity, inspection, risk and policy enforcement, approvals, credentials and tool execution, with tamper-evident audit storage and a security console.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0%" stop-color="#f8fbff"/>
+      <stop offset="100%" stop-color="#eef4fb"/>
+    </linearGradient>
+    <linearGradient id="navy" x1="0" x2="1">
+      <stop offset="0%" stop-color="#0d1b36"/>
+      <stop offset="100%" stop-color="#19345f"/>
+    </linearGradient>
+    <linearGradient id="green" x1="0" x2="1">
+      <stop offset="0%" stop-color="#eefbf6"/>
+      <stop offset="100%" stop-color="#dcf7ec"/>
+    </linearGradient>
+    <linearGradient id="red" x1="0" x2="1">
+      <stop offset="0%" stop-color="#fff6f6"/>
+      <stop offset="100%" stop-color="#ffe9e9"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="160%">
+      <feDropShadow dx="0" dy="6" stdDeviation="9" flood-color="#19345f" flood-opacity=".12"/>
+    </filter>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#4b5f7d"/>
+    </marker>
+    <marker id="arrowDark" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#19345f"/>
+    </marker>
+    <style>
+      .h1{font:700 42px Inter,Segoe UI,Arial,sans-serif;fill:#0d1b36}
+      .sub{font:500 20px Inter,Segoe UI,Arial,sans-serif;fill:#586a83}
+      .label{font:700 22px Inter,Segoe UI,Arial,sans-serif;fill:#0d1b36}
+      .body{font:500 17px Inter,Segoe UI,Arial,sans-serif;fill:#53657e}
+      .small{font:600 15px Inter,Segoe UI,Arial,sans-serif;fill:#5d6f88}
+      .tag{font:700 14px Inter,Segoe UI,Arial,sans-serif;fill:#19345f;letter-spacing:.4px}
+      .line{stroke:#4b5f7d;stroke-width:2.4;fill:none;marker-end:url(#arrow)}
+      .lineDark{stroke:#19345f;stroke-width:2.8;fill:none;marker-end:url(#arrowDark)}
+      .dash{stroke:#6d819d;stroke-width:2.2;stroke-dasharray:8 8;fill:none;marker-end:url(#arrow)}
+      .node{fill:white;stroke:#9cafc7;stroke-width:1.6;rx:14}
+      .node2{fill:url(#green);stroke:#69a98f;stroke-width:1.6;rx:14}
+      .node3{fill:url(#red);stroke:#df8585;stroke-width:1.6;rx:14}
+      .panel{fill:url(#bg);stroke:#b9c9dd;stroke-width:1.5;rx:18}
+    </style>
+  </defs>
+
+  <rect width="1600" height="1040" fill="white"/>
+  <rect x="24" y="24" width="1552" height="992" rx="28" fill="#fdfefe" stroke="#d6e0ec"/>
+
+  <text x="800" y="78" text-anchor="middle" class="h1">How AgentGuard Works</text>
+  <text x="800" y="112" text-anchor="middle" class="sub">Deterministic runtime security · authorization · audit control plane</text>
+
+  <!-- Main request path -->
+  <rect x="58" y="156" width="238" height="126" class="node" filter="url(#shadow)"/>
+  <text x="177" y="197" text-anchor="middle" class="label">AI Agent / MCP Client</text>
+  <text x="177" y="226" text-anchor="middle" class="body">browser · service · agent runtime</text>
+  <text x="177" y="252" text-anchor="middle" class="small">action + target + context</text>
+
+  <rect x="336" y="156" width="238" height="126" class="node" filter="url(#shadow)"/>
+  <text x="455" y="197" text-anchor="middle" class="label">Agent Identity</text>
+  <text x="455" y="226" text-anchor="middle" class="body">status · permissions</text>
+  <text x="455" y="252" text-anchor="middle" class="body">delegation scopes</text>
+
+  <rect x="614" y="156" width="246" height="126" class="node" filter="url(#shadow)"/>
+  <text x="737" y="195" text-anchor="middle" class="label">Data + Content</text>
+  <text x="737" y="221" text-anchor="middle" class="label">Inspection</text>
+  <text x="737" y="249" text-anchor="middle" class="body">PII · secrets · exfiltration indicators</text>
+
+  <rect x="900" y="156" width="246" height="126" class="node" filter="url(#shadow)"/>
+  <text x="1023" y="197" text-anchor="middle" class="label">Risk Engine</text>
+  <text x="1023" y="226" text-anchor="middle" class="body">contextual score</text>
+  <text x="1023" y="252" text-anchor="middle" class="body">risk factors + findings</text>
+
+  <rect x="1184" y="156" width="356" height="126" class="node" filter="url(#shadow)"/>
+  <text x="1362" y="195" text-anchor="middle" class="label">Policy / OPA Boundary</text>
+  <text x="1362" y="227" text-anchor="middle" class="body">ALLOW · REQUIRE APPROVAL · BLOCK</text>
+  <text x="1362" y="253" text-anchor="middle" class="small">single deterministic decision point</text>
+
+  <path d="M296 219 H336" class="line"/>
+  <path d="M574 219 H614" class="line"/>
+  <path d="M860 219 H900" class="line"/>
+  <path d="M1146 219 H1184" class="line"/>
+
+  <text x="316" y="205" text-anchor="middle" class="tag">REQUEST</text>
+  <text x="594" y="205" text-anchor="middle" class="tag">IDENTIFY</text>
+  <text x="880" y="205" text-anchor="middle" class="tag">INSPECT</text>
+  <text x="1165" y="205" text-anchor="middle" class="tag">EVALUATE</text>
+
+  <!-- Decision branches -->
+  <rect x="1036" y="344" width="248" height="112" class="node" filter="url(#shadow)"/>
+  <text x="1160" y="382" text-anchor="middle" class="label">Human Approval Gate</text>
+  <text x="1160" y="412" text-anchor="middle" class="body">pending · approved · denied · expired</text>
+  <text x="1160" y="438" text-anchor="middle" class="small">used for elevated-risk actions</text>
+
+  <rect x="1308" y="344" width="204" height="112" class="node3" filter="url(#shadow)"/>
+  <text x="1410" y="382" text-anchor="middle" class="label">Block / Deny</text>
+  <text x="1410" y="412" text-anchor="middle" class="body">stop execution</text>
+  <text x="1410" y="438" text-anchor="middle" class="small">+ audit event</text>
+
+  <path d="M1362 282 V318 H1160 V344" class="lineDark"/>
+  <path d="M1470 282 V344" class="line"/>
+  <text x="1242" y="311" text-anchor="middle" class="tag">REQUIRE APPROVAL</text>
+  <text x="1506" y="320" text-anchor="end" class="tag">BLOCK</text>
+
+  <!-- Execution lane -->
+  <rect x="72" y="514" width="278" height="118" class="node2" filter="url(#shadow)"/>
+  <text x="211" y="555" text-anchor="middle" class="label">Credential Broker</text>
+  <text x="211" y="584" text-anchor="middle" class="body">short-lived scoped credential</text>
+  <text x="211" y="609" text-anchor="middle" class="small">agent · tool · action bound</text>
+
+  <rect x="412" y="514" width="292" height="118" class="node" filter="url(#shadow)"/>
+  <text x="558" y="555" text-anchor="middle" class="label">Tool / MCP Gateway</text>
+  <text x="558" y="584" text-anchor="middle" class="body">single enforcement point</text>
+  <text x="558" y="609" text-anchor="middle" class="small">before execution</text>
+
+  <rect x="770" y="514" width="292" height="118" class="node" filter="url(#shadow)"/>
+  <text x="916" y="555" text-anchor="middle" class="label">External APIs / Tools</text>
+  <text x="916" y="584" text-anchor="middle" class="body">authorized execution only</text>
+  <text x="916" y="609" text-anchor="middle" class="small">credentials never bypass policy</text>
+
+  <path d="M1160 456 V480 H211 V514" class="lineDark"/>
+  <path d="M350 573 H412" class="line"/>
+  <path d="M704 573 H770" class="line"/>
+  <text x="380" y="558" text-anchor="middle" class="tag">SCOPED TOKEN</text>
+  <text x="737" y="558" text-anchor="middle" class="tag">AUTHORIZED REQUEST</text>
+  <text x="1046" y="477" text-anchor="middle" class="small">APPROVED</text>
+
+  <!-- Audit ledger -->
+  <rect x="100" y="686" width="1400" height="132" class="panel" filter="url(#shadow)"/>
+  <text x="800" y="731" text-anchor="middle" class="label">Tamper-Evident Audit Ledger</text>
+  <text x="800" y="761" text-anchor="middle" class="body">policy version · correlation ID · decision · risk · findings · tool / credential metadata</text>
+  <text x="800" y="788" text-anchor="middle" class="small">SHA-256 hash-chained events · durable recovery when persistence is configured</text>
+
+  <path d="M211 632 V686" class="dash"/>
+  <path d="M558 632 V686" class="dash"/>
+  <path d="M916 632 V686" class="dash"/>
+  <path d="M1410 456 V655 H1320 V686" class="dash"/>
+  <text x="95" y="670" class="small">AUDIT</text>
+
+  <!-- Bottom data plane -->
+  <rect x="58" y="866" width="1484" height="118" class="panel"/>
+  <text x="88" y="903" class="label">Durable Security Data</text>
+  <text x="88" y="932" class="body">PostgreSQL / Supabase · agents · credentials · approvals · audit events · system state</text>
+
+  <rect x="760" y="892" width="312" height="70" class="node"/>
+  <text x="916" y="922" text-anchor="middle" class="label" style="font-size:19px">Supabase / PostgreSQL</text>
+  <text x="916" y="947" text-anchor="middle" class="small">durable source of record</text>
+
+  <rect x="1120" y="892" width="372" height="70" class="node"/>
+  <text x="1306" y="922" text-anchor="middle" class="label" style="font-size:19px">Security Console</text>
+  <text x="1306" y="947" text-anchor="middle" class="small">agents · events · approvals · risk · posture</text>
+
+  <path d="M800 818 V852 H916 V892" class="lineDark"/>
+  <path d="M1072 927 H1120" class="line"/>
+  <text x="1094" y="912" text-anchor="middle" class="tag">QUERY / ANALYZE</text>
+
+  <rect x="116" y="712" width="212" height="44" rx="22" fill="#e8f0fb" stroke="#aebed3"/>
+  <text x="222" y="740" text-anchor="middle" class="tag">NO AI / ML DEPENDENCY</text>
+
+  <rect x="1270" y="712" width="190" height="44" rx="22" fill="#fef0f0" stroke="#e0aaaa"/>
+  <text x="1365" y="740" text-anchor="middle" class="tag" fill="#9b3a3a">FAIL CLOSED</text>
+</svg>
