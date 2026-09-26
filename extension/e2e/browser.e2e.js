@@ -32,7 +32,9 @@ async function main() {
         const payload = JSON.parse(body);
         const content = String(payload.content || "");
         let response;
-        if (content.includes("BLOCKME")) {
+        if (payload.approval_id) {
+          response = {event_id:"evt_approved",agent_id:"agt_browser_e2e",decision:"allow",reason:"Synthetic approval accepted",risk_score:76,risk_factors:["sensitive-test"],data_findings:["api_key"]};
+        } else if (content.includes("BLOCKME")) {
           response = {event_id:"evt_block",agent_id:"agt_browser_e2e",decision:"block",reason:"Synthetic policy block",risk_score:92,risk_factors:["synthetic-test"],data_findings:[]};
         } else if (content.includes("api_key=")) {
           approvalReady = true;
@@ -86,6 +88,7 @@ async function main() {
 
     const page = await context.newPage();
     await page.goto("http://localhost:4173/test-page.html");
+    await page.waitForFunction(() => document.documentElement.dataset.agentguardLoaded === "true", undefined, { timeout: 15_000 });
     const prompt = page.locator("#prompt");
     const result = page.locator("#result");
 
