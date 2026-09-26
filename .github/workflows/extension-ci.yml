@@ -32,12 +32,17 @@ jobs:
             node --check "$file"
           done
 
-      - name: Package extension
+      - name: Prepare release extension
+        run: node extension/build-release.js
+
+      - name: Package release extension
         shell: bash
         run: |
           set -e
           rm -f agentguard-browser-extension.zip
-          zip -r agentguard-browser-extension.zip extension -x 'extension/.DS_Store'
+          cd extension/dist
+          zip -r ../../agentguard-browser-extension.zip agentguard-browser-extension
+          cd ../..
 
       - name: Upload extension artifact
         uses: actions/upload-artifact@v4
