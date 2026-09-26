@@ -117,3 +117,19 @@ Then:
 10. Disable the backend or use an expired/tampered browser token and confirm the extension remains blocked.
 
 This lab validates browser interception and the live backend decision path without giving the extension broad access to unrelated websites.
+## Live backend smoke test
+
+After issuing a browser token from the AgentGuard control plane, test the deployed browser gateway without exposing the operator API key to the extension.
+
+PowerShell:
+
+```powershell
+$env:AGENTGUARD_BROWSER_API_URL="https://agentguard-api-gba3.onrender.com"
+$env:AGENTGUARD_BROWSER_AGENT_ID="agt_..."
+$env:AGENTGUARD_BROWSER_TOKEN="..."
+node extension/e2e/live-smoke.js
+```
+
+The smoke test verifies that the deployed browser gateway authenticates the token, a normal prompt returns ALLOW, and a prompt containing a test API-key pattern creates REQUIRE_APPROVAL.
+
+The approval is intentionally not auto-approved by this script. Use the AgentGuard control plane to approve the returned approval_id, then validate the extension's approval polling path in the browser lab.
