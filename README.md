@@ -37,6 +37,33 @@ AgentGuard follows one deterministic enforcement path: **identify → inspect �
 The runtime authorization path has no AI/ML/LLM dependency. Security decisions, data inspection, risk scoring, anomaly scoring, policy evaluation, credential scoping, and audit integrity are implemented as deterministic application logic.
 
 
+## Browser Security Extension
+
+AgentGuard now includes a Chrome Manifest V3 enforcement layer for browser-based AI applications. The extension watches supported AI prompt submissions and routes the prompt through the same deterministic security gateway used by the runtime:
+
+```text
+AI prompt
+   ↓
+Chrome extension
+   ↓
+Browser security token
+   ↓
+AgentGuard gateway
+   ↓
+Identity → content inspection → risk → policy
+   ↓
+ALLOW / REQUIRE APPROVAL / BLOCK
+   ↓
+resume / pause for approval / prevent submission
+```
+
+Supported browser AI surfaces in the first build include ChatGPT, Claude, Gemini, Microsoft Copilot, and Perplexity. The extension uses a scoped, short-lived browser token; the permanent operator API key and Supabase service key remain server-side.
+
+For local installation and browser-agent/token setup, see extension/README.md.
+
+The browser boundary is intentionally narrower than the AgentGuard runtime: native desktop agents and arbitrary local processes remain outside the Chrome extension.
+
+
 ## API surface
 
 All APIs are under `/api/v1`.
