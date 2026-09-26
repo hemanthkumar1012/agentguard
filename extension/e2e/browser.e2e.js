@@ -43,6 +43,7 @@ async function main() {
         } else if (content.includes("BLOCKME")) {
           response = {event_id:"evt_block",agent_id:"agt_browser_e2e",decision:"block",reason:"Synthetic policy block",risk_score:92,risk_factors:["synthetic-test"],data_findings:[]};
         } else if (content.includes("api_key=")) {
+          setTimeout(() => { approvalReady = true; }, 1000);
           response = {event_id:"evt_approval",agent_id:"agt_browser_e2e",decision:"require_approval",reason:"Synthetic approval required",risk_score:76,risk_factors:["sensitive-test"],data_findings:["api_key"],approval_id:"apr_e2e"};
         } else {
           response = {event_id:"evt_allow",agent_id:"agt_browser_e2e",decision:"allow",reason:"Synthetic allow",risk_score:10,risk_factors:[],data_findings:[]};
@@ -108,9 +109,6 @@ async function main() {
     await page.locator("#result").evaluate((el) => { el.textContent = "Waiting for approval…"; });
     await prompt.press("Enter");
     await page.locator(".ag-overlay").waitFor({state:"visible"});
-    await page.evaluate(async () => {
-      await fetch("http://localhost:8787/test/approve", { method: "POST" });
-    });
     await page.waitForFunction(() => document.querySelector("#result")?.textContent.includes("Prompt reached"), undefined, { timeout: 10_000 });
 
     await page.waitForTimeout(700);
