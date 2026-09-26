@@ -58,7 +58,7 @@ async function main() {
   });
 
   const context = await chromium.launchPersistentContext("", {
-    headless: true,
+    headless: false,
     args: [
       "--no-sandbox",
       `--disable-extensions-except=${extensionPath}`,
@@ -68,7 +68,10 @@ async function main() {
 
   try {
     let serviceWorker = context.serviceWorkers()[0];
-    if (!serviceWorker) serviceWorker = await context.waitForEvent("serviceworker");
+    if (!serviceWorker) {
+      serviceWorker = await context.waitForEvent("serviceworker", { timeout: 15_000 });
+    }
+    if (!serviceWorker) throw new Error("AgentGuard extension service worker did not start");
     const extensionId = new URL(serviceWorker.url()).host;
 
     const options = await context.newPage();
