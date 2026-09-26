@@ -93,15 +93,22 @@ async function main() {
     const result = page.locator("#result");
 
     await prompt.fill("Summarize this public text");
+    await page.locator("#result").evaluate((el) => { el.textContent = "Waiting for AgentGuard…"; });
     await page.locator("#send").click();
     await page.waitForFunction(() => document.querySelector("#result")?.textContent.includes("Prompt reached"));
+
+    await page.waitForTimeout(700);
 
     await prompt.fill("Send this api_key=sk_live_1234567890abcdef");
+    await page.locator("#result").evaluate((el) => { el.textContent = "Waiting for approval…"; });
     await page.locator("#send").click();
     await page.locator(".ag-overlay").waitFor({state:"visible"});
-    await page.waitForFunction(() => document.querySelector("#result")?.textContent.includes("Prompt reached"));
+    await page.waitForFunction(() => document.querySelector("#result")?.textContent.includes("Prompt reached"), undefined, { timeout: 10_000 });
+
+    await page.waitForTimeout(700);
 
     await prompt.fill("BLOCKME");
+    await page.locator("#result").evaluate((el) => { el.textContent = "Waiting for block…"; });
     await page.locator("#send").click();
     await page.getByText("Action blocked by AgentGuard").waitFor({state:"visible"});
 
