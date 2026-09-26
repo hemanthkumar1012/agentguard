@@ -13,10 +13,13 @@ function notify(text, good = true) {
 
 async function load() {
   const config = await chrome.runtime.sendMessage({ type: "get-config" });
+  const tokenStatus = await chrome.runtime.sendMessage({ type: "token-status" });
   backendUrl.value = config?.backendUrl || DEFAULT_BACKEND_URL;
   agentId.value = config?.agentId || "";
   browserToken.value = config?.browserToken || "";
-  enabled.checked = Boolean(config?.enabled);
+  enabled.checked = Boolean(config?.enabled && !tokenStatus?.expired);
+  const expiry = tokenStatus?.expires_at ? new Date(tokenStatus.expires_at).toLocaleString() : "not detected";
+  notify(tokenStatus?.expired ? `Browser token expired at ${expiry}. Issue a new token.` : `Browser token expiry: ${expiry}`, !tokenStatus?.expired);
 }
 
 form.addEventListener("submit", async (event) => {
@@ -31,6 +34,7 @@ form.addEventListener("submit", async (event) => {
     }
   });
   notify("Configuration saved. Reload the AI tab to apply it.");
+  await load();
 });
 
 document.getElementById("test").addEventListener("click", async () => {
