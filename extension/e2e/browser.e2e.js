@@ -1,9 +1,33 @@
 const http = require("http");
+const fs = require("fs");
+const os = require("os");
 const path = require("path");
 const { chromium } = require("@playwright/test");
 
 const repoRoot = path.resolve(__dirname, "../..");
-const extensionPath = path.join(repoRoot, "extension");
+const sourceExtensionPath = path.join(repoRoot, "extension");
+
+function createE2EExtension() {
+  const testPath = fs.mkdtempSync(path.join(os.tmpdir(), "agentguard-browser-e2e-"));
+  fs.cpSync(sourceExtensionPath, testPath, { recursive: true });
+
+  const manifestPath = path.join(testPath, "manifest.json");
+  const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
+  manifest.host_permissions = Array.from(new Set([
+    ...(manifest.host_permissions || []),
+    "http://localhost:4173/*",
+    "http://localhost:8787/*"
+  ]));
+  manifest.content_scripts = (manifest.content_scripts || []).map((entry) => ({
+    ...entry,
+    matches: Array.from(new Set([
+      ...(entry.matches || []),
+      "http://localhost:4173/*"
+    ]))
+  }));
+  fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + "\n");
+  return testPath;
+}
 
 function startServer(port, handler) {
   return new Promise((resolve) => {
@@ -59,8 +83,7 @@ async function main() {
 
   const staticServer = await startServer(4173, (req, res) => {
     if (req.url !== "/test-page.html") { res.writeHead(404); res.end(); return; }
-    const fs = require("fs");
-    const html = fs.readFileSync(path.join(extensionPath, "test-page.html"), "utf8");
+    const html = fs.readFileSync(path.join(sourceExtensionPath, "test-page.html"), "utf8");
     res.writeHead(200, {"content-type":"text/html; charset=utf-8"});
     res.end(html);
   });
