@@ -101,7 +101,7 @@ async function main() {
 
     await prompt.fill("Send this api_key=sk_live_1234567890abcdef");
     await page.locator("#result").evaluate((el) => { el.textContent = "Waiting for approval…"; });
-    await page.locator("#send").click();
+    await prompt.press("Enter");
     await page.locator(".ag-overlay").waitFor({state:"visible"});
     await page.waitForFunction(() => document.querySelector("#result")?.textContent.includes("Prompt reached"), undefined, { timeout: 10_000 });
 
@@ -109,7 +109,7 @@ async function main() {
 
     await prompt.fill("BLOCKME");
     await page.locator("#result").evaluate((el) => { el.textContent = "Waiting for block…"; });
-    await page.locator("#send").click();
+    await prompt.press("Enter");
     await page.getByText("Action blocked by AgentGuard").waitFor({state:"visible"});
 
     console.log("AgentGuard browser E2E: PASS");
