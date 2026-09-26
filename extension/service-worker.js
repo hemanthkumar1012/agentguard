@@ -25,6 +25,27 @@ async function config() {
   return chrome.storage.local.get(["backendUrl", "agentId", "browserToken", "enabled", "lastDecision"]);
 }
 
+function tokenExpiry(token) {
+  try {
+    const payload = token.split(".")[1];
+    const decoded = JSON.parse(atob(payload.replace(/-/g, "+").replace(/_/g, "/")));
+    return Number(decoded.exp || 0);
+  } catch {
+    return 0;
+  }
+}
+
+async function tokenStatus() {
+  const settings = await config();
+  const exp = tokenExpiry(settings.browserToken || "");
+  return {
+    configured: Boolean(settings.agentId && settings.browserToken),
+    enabled: Boolean(settings.enabled),
+    expires_at: exp ? new Date(exp * 1000).toISOString() : null,
+    expired: Boolean(exp && exp * 1000 <= Date.now())
+  };
+}
+
 async function backendRequest(path, options = {}) {
   const settings = await config();
   if (!settings.enabled || !settings.agentId || !settings.browserToken) {
@@ -99,6 +120,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     approvalStatus(message.approvalId)
       .then((body) => sendResponse({ ok: true, body }))
       .catch((error) => sendResponse({ ok: false, error: error.message }));
+    return true;
+  }
+
+  if (message?.type === "token-status") {
+    tokenStatus().then(sendResponse).catch((error) => sendResponse({ error: error.message }));
     return true;
   }
 
