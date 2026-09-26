@@ -325,3 +325,6 @@ document.addEventListener("visibilitychange", () => {
     }).catch(() => showBadge("SETUP REQUIRED", "warn"));
   }
 });
+
+
+document.documentElement.dataset.agentguardLoaded = "true";
