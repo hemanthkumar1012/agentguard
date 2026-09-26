@@ -65,6 +65,7 @@ async function main() {
     res.end(html);
   });
 
+  const extensionPath = createE2EExtension();
   const context = await chromium.launchPersistentContext("", {
     headless: false,
     args: [
@@ -123,6 +124,7 @@ async function main() {
     await context.close();
     await new Promise((resolve) => backend.close(resolve));
     await new Promise((resolve) => staticServer.close(resolve));
+    fs.rmSync(extensionPath, { recursive: true, force: true });
   }
 }
 
