@@ -56,4 +56,4 @@ jobs:
 
       - name: Run browser E2E
         working-directory: extension/e2e
-        run: npm test
+        run: xvfb-run -a npm test
