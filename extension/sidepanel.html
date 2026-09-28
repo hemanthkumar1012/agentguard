@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AgentGuard</title>
+  <link rel="stylesheet" href="panel.css">
+</head>
+<body>
+  <header>
+    <div class="brand"><span class="mark">AG</span><div><strong>AgentGuard</strong><small>BROWSER SECURITY</small></div></div>
+    <span id="status" class="pill">OFF</span>
+  </header>
+
+  <section class="hero">
+    <span class="eyebrow">RUNTIME PROTECTION</span>
+    <h1>Browser AI security</h1>
+    <p>Every supported AI prompt is checked by the AgentGuard gateway before it is submitted.</p>
+  </section>
+
+  <section class="grid">
+    <div class="card"><span>Protection</span><strong id="protection">Disabled</strong></div>
+    <div class="card"><span>Agent</span><strong id="agent">—</strong></div>
+    <div class="card"><span>Site</span><strong id="site">—</strong></div>
+    <div class="card"><span>Last decision</span><strong id="decision">—</strong></div>
+  </section>
+
+  <section class="card wide">
+    <div class="section-head"><span>Last security event</span><button id="refresh" class="ghost">Refresh</button></div>
+    <div id="event" class="event">No browser events yet.</div>
+  </section>
+
+  <section class="card wide">
+    <div class="section-head"><span>Protection model</span></div>
+    <div class="flow">
+      <div>Prompt</div><b>→</b><div>Inspect</div><b>→</b><div>Risk</div><b>→</b><div>Policy</div><b>→</b><div>Send</div>
+    </div>
+    <p class="muted">Sensitive content triggers the existing human-approval workflow. Backend failures fail closed.</p>
+  </section>
+
+  <div class="actions">
+    <button id="options">Configure</button>
+    <button id="docs" class="secondary">Setup docs</button>
+  </div>
+
+  <script src="sidepanel.js"></script>
+</body>
+</html>
