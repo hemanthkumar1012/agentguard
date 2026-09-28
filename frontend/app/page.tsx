@@ -36,8 +36,15 @@ const nav: { id: View; label: string; icon: React.ReactNode }[] = [
   { id: "browser", label: "Browser Guard", icon: <Globe2 size={18} /> },
 ];
 
-function decisionClass(decision: string) { return decision === "block" ? "danger" : decision === "require_approval" ? "warn" : "good"; }
-function formatDate(value?: string) { return value ? new Date(value).toLocaleString() : "—"; }
+function decisionClass(decision: string) {
+  if (decision === "block") return "danger";
+  if (decision === "require_approval") return "warn";
+  return "good";
+}
+
+function formatDate(value?: string) {
+  return value ? new Date(value).toLocaleString() : "—";
+}
 
 export default function Home() {
   const [view, setView] = useState<View>("overview");
@@ -46,16 +53,55 @@ export default function Home() {
   const [items, setItems] = useState<Agent[] | Event[] | Approval[] | Credential[]>([]);
 
   async function loadSnapshot() {
-    try { const res = await fetch("/api/control-plane/snapshot", { cache: "no-store" }); if (!res.ok) throw new Error(); setData(await res.json()); setConnected(true); }
-    catch { setConnected(false); }
+    try {
+      const response = await fetch("/api/control-plane/snapshot", {
+        cache: "no-store",
+      });
+
+      if (!response.ok) throw new Error();
+
+      setData(await response.json());
+      setConnected(true);
+    } catch {
+      setConnected(false);
+    }
   }
 
   async function loadView(nextView: View) {
     setView(nextView);
-    const resource = nextView === "agents" || nextView === "browser" ? "agents" : nextView === "events" ? "events" : nextView === "approvals" ? "approvals" : nextView === "credentials" ? "credentials" : null;
+
+    let resource: string | null = null;
+
+    if (nextView === "agents" || nextView === "browser") {
+      resource = "agents";
+    } else if (nextView === "events") {
+      resource = "events";
+    } else if (nextView === "approvals") {
+      resource = "approvals";
+    } else if (nextView === "credentials") {
+      resource = "credentials";
+    }
+
     if (!resource) return;
-    try { const res = await fetch(`/api/control-plane/${resource}`, { cache: "no-store" }); if (!res.ok) throw new Error(); const body = await res.json(); setItems(body.agents ?? body.events ?? body.approvals ?? body.credentials ?? []); }
-    catch { setItems([]); }
+
+    try {
+      const response = await fetch(`/api/control-plane/${resource}`, {
+        cache: "no-store",
+      });
+
+      if (!response.ok) throw new Error();
+
+      const body = await response.json();
+      setItems(
+        body.agents ??
+          body.events ??
+          body.approvals ??
+          body.credentials ??
+          []
+      );
+    } catch {
+      setItems([]);
+    }
   }
 
   useEffect(() => { loadSnapshot(); const id = setInterval(loadSnapshot, 5000); return () => clearInterval(id); }, []);
@@ -179,22 +225,195 @@ function DetailView({ view, items, refresh }: { view: View; items: Agent[] | Eve
   );
 }
 
-function PanelHead({ eyebrow, title, badge }: { eyebrow: string; title: string; badge?: string }) { 
-  return <div className="panel-head"><div><p className="eyebrow">{eyebrow}</p><h2>{title}</h2></div>{badge && <span className="badge">{badge}</span>}</div>; 
-}
-function Stat({ label, value, meta, icon, warn, danger }: { label: string; value: number; meta: string; icon: React.ReactNode; warn?: boolean; danger?: boolean }) { 
+function PanelHead({
+  eyebrow,
+  title,
+  badge,
+}: {
+  eyebrow: string;
+  title: string;
+  badge?: string;
+}) {
   return (
-    <motion.div className="stat" whileHover={{ y: -4, transition: { duration: 0.2 } }}>
-      <div className={`stat-icon ${warn ? "warn" : danger ? "danger" : ""}`}>{icon}</div>
-      <div><span>{label}</span><strong>{value.toLocaleString()}</strong><small>{meta}</small></div>
+    <div className="panel-head">
+      <div>
+        <p className="eyebrow">{eyebrow}</p>
+        <h2>{title}</h2>
+      </div>
+      {badge && <span className="badge">{badge}</span>}
+    </div>
+  );
+}
+function Stat({
+  label,
+  value,
+  meta,
+  icon,
+  warn,
+  danger,
+}: {
+  label: string;
+  value: number;
+  meta: string;
+  icon: React.ReactNode;
+  warn?: boolean;
+  danger?: boolean;
+}) {
+  return (
+    <motion.div
+      className="stat"
+      whileHover={{ y: -4, transition: { duration: 0.2 } }}
+    >
+      <div className={`stat-icon ${warn ? "warn" : danger ? "danger" : ""}`}>
+        {icon}
+      </div>
+      <div>
+        <span>{label}</span>
+        <strong>{value.toLocaleString()}</strong>
+        <small>{meta}</small>
+      </div>
     </motion.div>
-  ); 
+  );
 }
 
-function EventTable({ events }: { events: Event[] }) { return <section className="panel events"><PanelHead eyebrow="FORENSIC STREAM" title="Security decisions" badge={`${events.length} EVENTS`} />{events.length === 0 ? <div className="empty">No security events found.</div> : <div className="table">{events.map(e => <div className="event" key={e.event_id}><span className={`decision ${decisionClass(e.decision)}`}>{e.decision.replace("_", " ")}</span><div className="event-main"><b>{e.action}</b><span>{e.agent_id} → {e.target}</span></div><div className="event-risk">Risk <b>{Math.round(e.risk_score)}</b></div><div className="event-reason">{e.reason}<br />{formatDate(e.created_at)}</div></div>)}</div>}</section>; }
-function AgentTable({ agents }: { agents: Agent[] }) { return <section className="panel"><PanelHead eyebrow="IDENTITY" title="Registered agents" />{agents.length === 0 ? <div className="empty">No agents found.</div> : <div className="data-list">{agents.map(a => <div className="data-row" key={a.agent_id}><div><b>{a.name}</b><span>{a.agent_id} · {a.owner}</span></div><span className={`status ${a.status}`}>{a.status}</span><span>{a.permissions.join(", ") || "No permissions"}</span><small>{a.environment}</small></div>)}</div>}</section>; }
-function ApprovalTable({ approvals }: { approvals: Approval[] }) { return <section className="panel"><PanelHead eyebrow="HUMAN GATE" title="Approval queue" />{approvals.length === 0 ? <div className="empty">No approval requests found.</div> : <div className="data-list">{approvals.map(a => <div className="data-row" key={a.approval_id}><div><b>{a.approval_id}</b><span>Requested by {a.requested_by}</span></div><span className={`status ${a.status}`}>{a.status}</span><small>Expires {formatDate(a.expires_at)}</small></div>)}</div>}</section>; }
-function CredentialTable({ credentials }: { credentials: Credential[] }) { return <section className="panel"><PanelHead eyebrow="CREDENTIAL BROKER" title="Scoped credentials" />{credentials.length === 0 ? <div className="empty">No credentials found. Tokens are never returned after issuance.</div> : <div className="data-list">{credentials.map(c => <div className="data-row" key={c.credential_id}><div><b>{c.credential_id}</b><span>{c.agent_id} · {c.tool}</span></div><span>{c.scopes.join(", ")}</span><small>{c.revoked ? "Revoked" : `Expires ${formatDate(c.expires_at)}`}</small></div>)}</div>}</section>; }
+function EventTable({ events }: { events: Event[] }) {
+  return (
+    <section className="panel events">
+      <PanelHead
+        eyebrow="FORENSIC STREAM"
+        title="Security decisions"
+        badge={`${events.length} EVENTS`}
+      />
+
+      {events.length === 0 ? (
+        <div className="empty">No security events found.</div>
+      ) : (
+        <div className="table">
+          {events.map((event) => (
+            <div className="event" key={event.event_id}>
+              <span className={`decision ${decisionClass(event.decision)}`}>
+                {event.decision.replace("_", " ")}
+              </span>
+
+              <div className="event-main">
+                <b>{event.action}</b>
+                <span>
+                  {event.agent_id} → {event.target}
+                </span>
+              </div>
+
+              <div className="event-risk">
+                Risk <b>{Math.round(event.risk_score)}</b>
+              </div>
+
+              <div className="event-reason">
+                {event.reason}
+                <br />
+                {formatDate(event.created_at)}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+function AgentTable({ agents }: { agents: Agent[] }) {
+  return (
+    <section className="panel">
+      <PanelHead eyebrow="IDENTITY" title="Registered agents" />
+
+      {agents.length === 0 ? (
+        <div className="empty">No agents found.</div>
+      ) : (
+        <div className="data-list">
+          {agents.map((agent) => (
+            <div className="data-row" key={agent.agent_id}>
+              <div>
+                <b>{agent.name}</b>
+                <span>
+                  {agent.agent_id} · {agent.owner}
+                </span>
+              </div>
+
+              <span className={`status ${agent.status}`}>
+                {agent.status}
+              </span>
+
+              <span>
+                {agent.permissions.join(", ") || "No permissions"}
+              </span>
+
+              <small>{agent.environment}</small>
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+function ApprovalTable({ approvals }: { approvals: Approval[] }) {
+  return (
+    <section className="panel">
+      <PanelHead eyebrow="HUMAN GATE" title="Approval queue" />
+
+      {approvals.length === 0 ? (
+        <div className="empty">No approval requests found.</div>
+      ) : (
+        <div className="data-list">
+          {approvals.map((approval) => (
+            <div className="data-row" key={approval.approval_id}>
+              <div>
+                <b>{approval.approval_id}</b>
+                <span>Requested by {approval.requested_by}</span>
+              </div>
+
+              <span className={`status ${approval.status}`}>
+                {approval.status}
+              </span>
+
+              <small>Expires {formatDate(approval.expires_at)}</small>
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+function CredentialTable({ credentials }: { credentials: Credential[] }) {
+  return (
+    <section className="panel">
+      <PanelHead eyebrow="CREDENTIAL BROKER" title="Scoped credentials" />
+
+      {credentials.length === 0 ? (
+        <div className="empty">
+          No credentials found. Tokens are never returned after issuance.
+        </div>
+      ) : (
+        <div className="data-list">
+          {credentials.map((credential) => (
+            <div className="data-row" key={credential.credential_id}>
+              <div>
+                <b>{credential.credential_id}</b>
+                <span>
+                  {credential.agent_id} · {credential.tool}
+                </span>
+              </div>
+
+              <span>{credential.scopes.join(", ")}</span>
+
+              <small>
+                {credential.revoked
+                  ? "Revoked"
+                  : `Expires ${formatDate(credential.expires_at)}`}
+              </small>
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
 function BrowserGuardView({ agents }: { agents: Agent[] }) {
   const [agentId, setAgentId] = useState("");
   const [ttlHours, setTtlHours] = useState("24");
