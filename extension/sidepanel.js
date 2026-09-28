@@ -11,30 +11,57 @@ function fmt(value) {
 
 async function load() {
   const config = await chrome.runtime.sendMessage({ type: "get-config" });
-  const enabled = Boolean(config?.enabled && config?.agentId && config?.browserToken);
+  const enabled = Boolean(
+    config?.enabled && config?.agentId && config?.browserToken
+  );
+
   statusEl.textContent = enabled ? "PROTECTED" : "OFF";
   statusEl.className = `pill ${enabled ? "on" : "bad"}`;
-  protectionEl.textContent = enabled ? "Fail-closed protection" : "Disabled";
+  protectionEl.textContent = enabled
+    ? "Fail-closed protection"
+    : "Disabled";
   agentEl.textContent = config?.agentId || "Not configured";
 
-  const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
-  siteEl.textContent = tabs?.[0]?.url ? new URL(tabs[0].url).hostname : "—";
+  const tabs = await chrome.tabs.query({
+    active: true,
+    currentWindow: true,
+  });
 
-  const d = config?.lastDecision;
-  decisionEl.textContent = d?.decision ? d.decision.replace("_", " ").toUpperCase() : "—";
-  eventEl.innerHTML = d
-    ? `<strong>${d.decision}</strong> · risk ${Math.round(d.risk_score || 0)}/100<br>${d.reason || "No reason returned"}<br><span style="color:#8795a8">${fmt(d.received_at)}</span>`
+  siteEl.textContent = tabs?.[0]?.url
+    ? new URL(tabs[0].url).hostname
+    : "—";
+
+  const decision = config?.lastDecision;
+
+  decisionEl.textContent = decision?.decision
+    ? decision.decision.replace("_", " ").toUpperCase()
+    : "—";
+
+  eventEl.innerHTML = decision
+    ? `<strong>${decision.decision}</strong> · risk ${Math.round(
+        decision.risk_score || 0
+      )}/100<br>${decision.reason || "No reason returned"}<br><span style="color:#8795a8">${fmt(
+        decision.received_at
+      )}</span>`
     : "No browser events yet.";
 }
 
 document.getElementById("refresh").addEventListener("click", load);
-document.getElementById("options").addEventListener("click", () => chrome.runtime.openOptionsPage());
+
+document.getElementById("options").addEventListener("click", () => {
+  chrome.runtime.openOptionsPage();
+});
+
 document.getElementById("docs").addEventListener("click", () => {
-  chrome.tabs.create({ url: "https://github.com/hemanthkumar1012/agentguard/tree/main/extension" });
+  chrome.tabs.create({
+    url: "https://github.com/hemanthkumar1012/agentguard/tree/main/extension",
+  });
 });
 
 chrome.runtime.onMessage.addListener((message) => {
-  if (message?.type === "decision-updated") load();
+  if (message?.type === "decision-updated") {
+    load();
+  }
 });
 
 load();
