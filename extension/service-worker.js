@@ -2,12 +2,16 @@ const DEFAULT_BACKEND_URL = "https://agentguard-api-gba3.onrender.com";
 
 chrome.runtime.onInstalled.addListener(async () => {
   const current = await chrome.storage.local.get(["backendUrl", "enabled"]);
+
   await chrome.storage.local.set({
     backendUrl: current.backendUrl || DEFAULT_BACKEND_URL,
-    enabled: current.enabled ?? false
+    enabled: current.enabled ?? false,
   });
+
   try {
-    await chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true });
+    await chrome.sidePanel.setPanelBehavior({
+      openPanelOnActionClick: true,
+    });
   } catch {
     // Older Chrome builds may not expose this behavior.
   }
@@ -15,20 +19,31 @@ chrome.runtime.onInstalled.addListener(async () => {
 
 chrome.runtime.onStartup.addListener(async () => {
   try {
-    await chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true });
+    await chrome.sidePanel.setPanelBehavior({
+      openPanelOnActionClick: true,
+    });
   } catch {
     // No-op.
   }
 });
 
 async function config() {
-  return chrome.storage.local.get(["backendUrl", "agentId", "browserToken", "enabled", "lastDecision"]);
+  return chrome.storage.local.get([
+    "backendUrl",
+    "agentId",
+    "browserToken",
+    "enabled",
+    "lastDecision",
+  ]);
 }
 
 function tokenExpiry(token) {
   try {
     const payload = token.split(".")[1];
-    const decoded = JSON.parse(atob(payload.replace(/-/g, "+").replace(/_/g, "/")));
+    const decoded = JSON.parse(
+      atob(payload.replace(/-/g, "+").replace(/_/g, "/"))
+    );
+
     return Number(decoded.exp || 0);
   } catch {
     return 0;
@@ -38,74 +53,100 @@ function tokenExpiry(token) {
 async function tokenStatus() {
   const settings = await config();
   const exp = tokenExpiry(settings.browserToken || "");
+
   return {
     configured: Boolean(settings.agentId && settings.browserToken),
     enabled: Boolean(settings.enabled),
     expires_at: exp ? new Date(exp * 1000).toISOString() : null,
-    expired: Boolean(exp && exp * 1000 <= Date.now())
+    expired: Boolean(exp && exp * 1000 <= Date.now()),
   };
 }
 
 async function backendRequest(path, options = {}) {
   const settings = await config();
+
   if (!settings.enabled || !settings.agentId || !settings.browserToken) {
     throw new Error("AgentGuard browser protection is not configured");
   }
 
   const base = (settings.backendUrl || DEFAULT_BACKEND_URL).replace(/\/$/, "");
+
   const response = await fetch(`${base}${path}`, {
     ...options,
     headers: {
       "content-type": "application/json",
       authorization: `Bearer ${settings.browserToken}`,
-      ...(options.headers || {})
+      ...(options.headers || {}),
     },
-    cache: "no-store"
+    cache: "no-store",
   });
 
   const text = await response.text();
+
   let body = {};
-  try { body = text ? JSON.parse(text) : {}; } catch { body = { detail: text || "Invalid backend response" }; }
-  if (!response.ok) {
-    throw new Error(body.detail || `AgentGuard request failed (${response.status})`);
+  try {
+    body = text ? JSON.parse(text) : {};
+  } catch {
+    body = { detail: text || "Invalid backend response" };
   }
+
+  if (!response.ok) {
+    throw new Error(
+      body.detail || `AgentGuard request failed (${response.status})`
+    );
+  }
+
   return body;
 }
 
 async function storeDecision(decision) {
   const snapshot = {
     ...decision,
-    received_at: new Date().toISOString()
+    received_at: new Date().toISOString(),
   };
+
   await chrome.storage.local.set({ lastDecision: snapshot });
+
   try {
-    await chrome.runtime.sendMessage({ type: "decision-updated", decision: snapshot });
+    await chrome.runtime.sendMessage({
+      type: "decision-updated",
+      decision: snapshot,
+    });
   } catch {
     // Side panel may not be open.
   }
+
   return snapshot;
 }
 
 async function inspect(payload) {
   const body = await backendRequest("/browser/v1/inspect", {
     method: "POST",
-    body: JSON.stringify(payload)
+    body: JSON.stringify(payload),
   });
+
   return storeDecision(body);
 }
 
 async function approvalStatus(approvalId) {
-  return backendRequest(`/browser/v1/approvals/${encodeURIComponent(approvalId)}`);
+  return backendRequest(
+    `/browser/v1/approvals/${encodeURIComponent(approvalId)}`
+  );
 }
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message?.type === "get-config") {
-    config().then(sendResponse).catch((error) => sendResponse({ error: error.message }));
+    config()
+      .then(sendResponse)
+      .catch((error) => sendResponse({ error: error.message }));
     return true;
   }
 
   if (message?.type === "save-config") {
-    chrome.storage.local.set(message.value || {}).then(() => sendResponse({ ok: true })).catch((error) => sendResponse({ error: error.message }));
+    chrome.storage.local
+      .set(message.value || {})
+      .then(() => sendResponse({ ok: true }))
+      .catch((error) => sendResponse({ error: error.message }));
     return true;
   }
 
@@ -124,29 +165,53 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 
   if (message?.type === "token-status") {
-    tokenStatus().then(sendResponse).catch((error) => sendResponse({ error: error.message }));
+    tokenStatus()
+      .then(sendResponse)
+      .catch((error) => sendResponse({ error: error.message }));
     return true;
   }
 
   if (message?.type === "test-connection") {
     (async () => {
       const settings = await config();
+
       if (!settings?.agentId || !settings?.browserToken) {
         throw new Error("Enter an agent ID and browser token first");
       }
-      const base = (settings.backendUrl || DEFAULT_BACKEND_URL).replace(/\/$/, "");
+
+      const base = (settings.backendUrl || DEFAULT_BACKEND_URL).replace(
+        /\/$/,
+        ""
+      );
+
       const response = await fetch(`${base}/browser/v1/health`, {
-        headers: { authorization: `Bearer ${settings.browserToken}` },
-        cache: "no-store"
+        headers: {
+          authorization: `Bearer ${settings.browserToken}`,
+        },
+        cache: "no-store",
       });
+
       const text = await response.text();
+
       let body = {};
-      try { body = text ? JSON.parse(text) : {}; } catch {}
+      try {
+        body = text ? JSON.parse(text) : {};
+      } catch {}
+
       if (!response.ok) {
-        throw new Error(body.detail || `Token test failed (${response.status})`);
+        throw new Error(
+          body.detail || `Token test failed (${response.status})`
+        );
       }
-      sendResponse({ ok: body.status === "ok", body });
-    })().catch((error) => sendResponse({ ok: false, error: error.message }));
+
+      sendResponse({
+        ok: body.status === "ok",
+        body,
+      });
+    })().catch((error) =>
+      sendResponse({ ok: false, error: error.message })
+    );
+
     return true;
   }
 
