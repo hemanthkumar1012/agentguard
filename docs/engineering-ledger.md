@@ -84,3 +84,4 @@ This ledger records small, reviewable engineering improvements made while harden
 - Document dependency pinning for reproducible backend builds.
 - Document dependency update review for security-sensitive packages.
 - Document frontend dependency audit expectations.
+- Document Node and Python runtime version expectations.
