@@ -90,3 +90,4 @@ This ledger records small, reviewable engineering improvements made while harden
 - Document Python test expectations for backend changes.
 - Document build validation before deployment.
 - Document Docker image build validation.
+- Document configuration validation during CI.
