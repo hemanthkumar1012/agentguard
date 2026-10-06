@@ -68,3 +68,4 @@ This ledger records small, reviewable engineering improvements made while harden
 - Document that dashboard controls should reflect server decisions.
 - Document keyboard accessibility for security controls.
 - Document visible focus states for operator actions.
+- Document confirmation requirements for destructive operator actions.
