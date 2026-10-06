@@ -111,3 +111,4 @@ This ledger records small, reviewable engineering improvements made while harden
 - Document threat modeling for policy misconfiguration.
 - Document threat modeling for frontend proxy exposure.
 - Document threat modeling for supply-chain dependency compromise.
+- Document incident response steps for repeated authorization failures.
