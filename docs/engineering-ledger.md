@@ -47,3 +47,4 @@ This ledger records small, reviewable engineering improvements made while harden
 - Document Redis as a transport layer rather than the source of truth.
 - Document Supabase/PostgreSQL as durable security state storage.
 - Document database migrations as reviewable production changes.
+- Document migration ordering and compatibility expectations.
