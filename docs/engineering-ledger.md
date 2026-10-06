@@ -31,3 +31,4 @@ This ledger records small, reviewable engineering improvements made while harden
 - Return structured decision metadata so clients can render security state.
 - Keep blocked requests from reaching downstream tool execution.
 - Define agent identity as a prerequisite for every protected action.
+- Keep policy rules versioned so authorization behavior can be reviewed historically.
