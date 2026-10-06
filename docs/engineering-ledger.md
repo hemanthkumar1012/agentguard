@@ -100,3 +100,4 @@ This ledger records small, reviewable engineering improvements made while harden
 - Document safe handling of malformed JSON requests.
 - Document safe handling of missing required request fields.
 - Document safe handling of unsupported content types.
+- Document safe handling of unexpected upstream failures.
