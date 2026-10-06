@@ -88,3 +88,4 @@ This ledger records small, reviewable engineering improvements made while harden
 - Document CI cache invalidation when lockfiles change.
 - Document lint and type-check expectations for frontend changes.
 - Document Python test expectations for backend changes.
+- Document build validation before deployment.
