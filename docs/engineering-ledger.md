@@ -108,3 +108,4 @@ This ledger records small, reviewable engineering improvements made while harden
 - Document threat modeling for unauthorized credential use.
 - Document threat modeling for approval replay attempts.
 - Document threat modeling for audit tampering.
+- Document threat modeling for policy misconfiguration.
