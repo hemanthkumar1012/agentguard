@@ -38,3 +38,4 @@ This ledger records small, reviewable engineering improvements made while harden
 - Document default-deny behavior for unknown actions.
 - Document default-deny behavior for unknown agents.
 - Document explicit allowlists for sensitive tools.
+- Document external-target classification rules.
