@@ -119,3 +119,4 @@ This ledger records small, reviewable engineering improvements made while harden
 - Document incident response steps for abnormal approval volume.
 - Document operator escalation paths for security incidents.
 - Document credential rotation expectations after suspected exposure.
+- Document browser token reissuance after suspected compromise.
