@@ -95,3 +95,4 @@ This ledger records small, reviewable engineering improvements made while harden
 - Document backward-compatible additions to browser gateway responses.
 - Document explicit deprecation handling for security API fields.
 - Document request schema validation at API boundaries.
+- Document response schema stability for extension clients.
