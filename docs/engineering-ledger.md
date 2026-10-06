@@ -93,3 +93,4 @@ This ledger records small, reviewable engineering improvements made while harden
 - Document configuration validation during CI.
 - Document API versioning expectations for security endpoints.
 - Document backward-compatible additions to browser gateway responses.
+- Document explicit deprecation handling for security API fields.
