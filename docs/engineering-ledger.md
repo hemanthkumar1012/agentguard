@@ -33,3 +33,4 @@ This ledger records small, reviewable engineering improvements made while harden
 - Define agent identity as a prerequisite for every protected action.
 - Keep policy rules versioned so authorization behavior can be reviewed historically.
 - Document policy identifiers in audit records when available.
+- Keep policy evaluation order deterministic.
