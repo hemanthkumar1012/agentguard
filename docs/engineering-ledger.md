@@ -44,3 +44,4 @@ This ledger records small, reviewable engineering improvements made while harden
 - Document database availability expectations for security state.
 - Document how durable audit writes should behave during transient failures.
 - Keep authorization from silently degrading to unpersisted state.
+- Document Redis as a transport layer rather than the source of truth.
