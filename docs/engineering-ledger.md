@@ -124,3 +124,4 @@ This ledger records small, reviewable engineering improvements made while harden
 - Document security review criteria for new protected actions.
 - Document security review criteria for new credential scopes.
 - Document security review criteria for new browser providers.
+- Document security review criteria for policy changes.
