@@ -42,3 +42,4 @@ This ledger records small, reviewable engineering improvements made while harden
 - Document local-versus-external target handling.
 - Document transport security requirements for external calls.
 - Document database availability expectations for security state.
+- Document how durable audit writes should behave during transient failures.
