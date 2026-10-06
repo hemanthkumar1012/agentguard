@@ -54,3 +54,4 @@ This ledger records small, reviewable engineering improvements made while harden
 - Document structured logging fields for request correlation.
 - Keep logs free of bearer tokens and credential values.
 - Document safe logging of agent identifiers.
+- Document safe logging of action names and decision outcomes.
