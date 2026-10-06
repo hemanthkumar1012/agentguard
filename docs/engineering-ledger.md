@@ -26,3 +26,4 @@ This ledger records small, reviewable engineering improvements made while harden
 - Keep Supabase service credentials server-side.
 - Use environment variables for deployment-specific backend configuration.
 - Document production and preview environment differences.
+- Keep health endpoints lightweight and safe to expose.
