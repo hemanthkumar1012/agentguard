@@ -55,3 +55,4 @@ This ledger records small, reviewable engineering improvements made while harden
 - Keep logs free of bearer tokens and credential values.
 - Document safe logging of agent identifiers.
 - Document safe logging of action names and decision outcomes.
+- Keep exception responses separate from internal stack traces.
