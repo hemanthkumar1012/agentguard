@@ -66,3 +66,4 @@ This ledger records small, reviewable engineering improvements made while harden
 - Document frontend error states for unavailable backend services.
 - Document approval UI as an operator action rather than automatic authorization.
 - Document that dashboard controls should reflect server decisions.
+- Document keyboard accessibility for security controls.
