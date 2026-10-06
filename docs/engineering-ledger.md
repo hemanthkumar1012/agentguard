@@ -22,3 +22,4 @@ This ledger records small, reviewable engineering improvements made while harden
 - Ensure approval records have an expiration boundary.
 - Prevent an approval from silently authorizing a different request.
 - Keep credential scope narrower than agent identity scope.
+- Never place permanent operator API keys in browser code.
