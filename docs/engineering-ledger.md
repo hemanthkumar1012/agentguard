@@ -8,3 +8,4 @@ This ledger records small, reviewable engineering improvements made while harden
 
 - Document the backend API as the authoritative enforcement boundary.
 - Document that browser tokens must remain short-lived and scoped.
+- Document fail-closed behavior for unavailable policy enforcement.
