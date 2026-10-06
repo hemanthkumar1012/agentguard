@@ -19,3 +19,4 @@ This ledger records small, reviewable engineering improvements made while harden
 - Preserve request IDs across gateway, audit, and API responses.
 - Keep sensitive-data classifications separate from action risk.
 - Require approval only when policy semantics explicitly demand it.
+- Ensure approval records have an expiration boundary.
