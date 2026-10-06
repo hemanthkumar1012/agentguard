@@ -36,3 +36,4 @@ This ledger records small, reviewable engineering improvements made while harden
 - Keep policy evaluation order deterministic.
 - Reject ambiguous policy inputs instead of guessing.
 - Document default-deny behavior for unknown actions.
+- Document default-deny behavior for unknown agents.
