@@ -76,3 +76,4 @@ This ledger records small, reviewable engineering improvements made while harden
 - Document deterministic local browser fixtures for repeatable tests.
 - Document E2E test isolation from production credentials.
 - Document temporary localhost permissions as test-only configuration.
+- Document release package validation before publishing.
