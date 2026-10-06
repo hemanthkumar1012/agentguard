@@ -97,3 +97,4 @@ This ledger records small, reviewable engineering improvements made while harden
 - Document request schema validation at API boundaries.
 - Document response schema stability for extension clients.
 - Document maximum request size expectations for prompt inspection.
+- Document safe handling of malformed JSON requests.
