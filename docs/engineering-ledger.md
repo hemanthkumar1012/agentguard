@@ -17,3 +17,4 @@ This ledger records small, reviewable engineering improvements made while harden
 - Keep high-impact actions explicit instead of inferred from UI labels.
 - Record risk factors alongside the final risk score for operator review.
 - Preserve request IDs across gateway, audit, and API responses.
+- Keep sensitive-data classifications separate from action risk.
