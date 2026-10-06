@@ -73,3 +73,4 @@ This ledger records small, reviewable engineering improvements made while harden
 - Document clear user messaging for blocked browser prompts.
 - Document browser provider selector changes as an integration risk.
 - Document real-site smoke testing before browser extension releases.
+- Document deterministic local browser fixtures for repeatable tests.
