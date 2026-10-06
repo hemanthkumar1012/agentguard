@@ -27,3 +27,4 @@ This ledger records small, reviewable engineering improvements made while harden
 - Use environment variables for deployment-specific backend configuration.
 - Document production and preview environment differences.
 - Keep health endpoints lightweight and safe to expose.
+- Rate-limit browser security endpoints independently from general API traffic.
