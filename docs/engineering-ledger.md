@@ -51,3 +51,4 @@ This ledger records small, reviewable engineering improvements made while harden
 - Document backup and restore considerations for audit data.
 - Document retention expectations for security events.
 - Document privacy boundaries for stored prompt-derived findings.
+- Document structured logging fields for request correlation.
