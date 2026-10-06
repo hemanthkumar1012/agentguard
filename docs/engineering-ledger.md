@@ -121,3 +121,4 @@ This ledger records small, reviewable engineering improvements made while harden
 - Document credential rotation expectations after suspected exposure.
 - Document browser token reissuance after suspected compromise.
 - Document post-incident review requirements for enforcement failures.
+- Document security review criteria for new protected actions.
