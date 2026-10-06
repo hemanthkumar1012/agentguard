@@ -35,3 +35,4 @@ This ledger records small, reviewable engineering improvements made while harden
 - Document policy identifiers in audit records when available.
 - Keep policy evaluation order deterministic.
 - Reject ambiguous policy inputs instead of guessing.
+- Document default-deny behavior for unknown actions.
