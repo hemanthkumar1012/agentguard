@@ -78,3 +78,4 @@ This ledger records small, reviewable engineering improvements made while harden
 - Document temporary localhost permissions as test-only configuration.
 - Document release package validation before publishing.
 - Document extension versioning rules for browser store releases.
+- Document extension rollback strategy.
