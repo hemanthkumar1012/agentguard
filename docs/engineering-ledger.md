@@ -49,3 +49,4 @@ This ledger records small, reviewable engineering improvements made while harden
 - Document database migrations as reviewable production changes.
 - Document migration ordering and compatibility expectations.
 - Document backup and restore considerations for audit data.
+- Document retention expectations for security events.
