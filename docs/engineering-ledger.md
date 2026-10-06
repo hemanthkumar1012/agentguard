@@ -25,3 +25,4 @@ This ledger records small, reviewable engineering improvements made while harden
 - Never place permanent operator API keys in browser code.
 - Keep Supabase service credentials server-side.
 - Use environment variables for deployment-specific backend configuration.
+- Document production and preview environment differences.
