@@ -99,3 +99,4 @@ This ledger records small, reviewable engineering improvements made while harden
 - Document maximum request size expectations for prompt inspection.
 - Document safe handling of malformed JSON requests.
 - Document safe handling of missing required request fields.
+- Document safe handling of unsupported content types.
