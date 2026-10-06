@@ -85,3 +85,4 @@ This ledger records small, reviewable engineering improvements made while harden
 - Document dependency update review for security-sensitive packages.
 - Document frontend dependency audit expectations.
 - Document Node and Python runtime version expectations.
+- Document CI cache invalidation when lockfiles change.
