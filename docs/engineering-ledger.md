@@ -34,3 +34,4 @@ This ledger records small, reviewable engineering improvements made while harden
 - Keep policy rules versioned so authorization behavior can be reviewed historically.
 - Document policy identifiers in audit records when available.
 - Keep policy evaluation order deterministic.
+- Reject ambiguous policy inputs instead of guessing.
