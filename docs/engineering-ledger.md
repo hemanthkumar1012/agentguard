@@ -60,3 +60,4 @@ This ledger records small, reviewable engineering improvements made while harden
 - Document operator-facing diagnostics without exposing secrets.
 - Document health checks for database connectivity.
 - Document health checks for policy loading.
+- Document health checks for required configuration.
