@@ -7,3 +7,4 @@ This ledger records small, reviewable engineering improvements made while harden
 - Establish a dedicated engineering ledger for security, reliability, testing, and documentation work.
 
 - Document the backend API as the authoritative enforcement boundary.
+- Document that browser tokens must remain short-lived and scoped.
