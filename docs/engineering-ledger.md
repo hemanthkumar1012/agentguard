@@ -57,3 +57,4 @@ This ledger records small, reviewable engineering improvements made while harden
 - Document safe logging of action names and decision outcomes.
 - Keep exception responses separate from internal stack traces.
 - Document production error handling expectations.
+- Document operator-facing diagnostics without exposing secrets.
