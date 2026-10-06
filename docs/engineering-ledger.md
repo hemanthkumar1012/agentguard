@@ -69,3 +69,4 @@ This ledger records small, reviewable engineering improvements made while harden
 - Document keyboard accessibility for security controls.
 - Document visible focus states for operator actions.
 - Document confirmation requirements for destructive operator actions.
+- Document browser extension status indicators as non-authoritative UI.
