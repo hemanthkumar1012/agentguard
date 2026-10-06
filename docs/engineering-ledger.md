@@ -16,3 +16,4 @@ This ledger records small, reviewable engineering improvements made while harden
 - Treat policy evaluation as deterministic and reproducible.
 - Keep high-impact actions explicit instead of inferred from UI labels.
 - Record risk factors alongside the final risk score for operator review.
+- Preserve request IDs across gateway, audit, and API responses.
