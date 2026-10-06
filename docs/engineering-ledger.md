@@ -103,3 +103,4 @@ This ledger records small, reviewable engineering improvements made while harden
 - Document safe handling of unexpected upstream failures.
 - Document threat modeling for prompt injection against browser agents.
 - Document threat modeling for stolen short-lived browser tokens.
+- Document threat modeling for compromised browser sessions.
