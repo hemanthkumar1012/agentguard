@@ -14,3 +14,4 @@ This ledger records small, reviewable engineering improvements made while harden
 - Define agent identity as a prerequisite for every protected action.
 - Keep authorization decisions independent from presentation-layer UI state.
 - Treat policy evaluation as deterministic and reproducible.
+- Keep high-impact actions explicit instead of inferred from UI labels.
