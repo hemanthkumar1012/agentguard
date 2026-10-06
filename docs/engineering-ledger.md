@@ -13,3 +13,4 @@ This ledger records small, reviewable engineering improvements made while harden
 - Document approval fingerprints as exact-request authorization.
 - Define agent identity as a prerequisite for every protected action.
 - Keep authorization decisions independent from presentation-layer UI state.
+- Treat policy evaluation as deterministic and reproducible.
