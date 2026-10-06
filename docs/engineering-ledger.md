@@ -91,3 +91,4 @@ This ledger records small, reviewable engineering improvements made while harden
 - Document build validation before deployment.
 - Document Docker image build validation.
 - Document configuration validation during CI.
+- Document API versioning expectations for security endpoints.
