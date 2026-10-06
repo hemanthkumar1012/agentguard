@@ -89,3 +89,4 @@ This ledger records small, reviewable engineering improvements made while harden
 - Document lint and type-check expectations for frontend changes.
 - Document Python test expectations for backend changes.
 - Document build validation before deployment.
+- Document Docker image build validation.
