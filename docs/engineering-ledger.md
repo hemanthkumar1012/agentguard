@@ -20,3 +20,4 @@ This ledger records small, reviewable engineering improvements made while harden
 - Keep sensitive-data classifications separate from action risk.
 - Require approval only when policy semantics explicitly demand it.
 - Ensure approval records have an expiration boundary.
+- Prevent an approval from silently authorizing a different request.
