@@ -45,3 +45,4 @@ This ledger records small, reviewable engineering improvements made while harden
 - Document how durable audit writes should behave during transient failures.
 - Keep authorization from silently degrading to unpersisted state.
 - Document Redis as a transport layer rather than the source of truth.
+- Document Supabase/PostgreSQL as durable security state storage.
