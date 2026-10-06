@@ -79,3 +79,4 @@ This ledger records small, reviewable engineering improvements made while harden
 - Document release package validation before publishing.
 - Document extension versioning rules for browser store releases.
 - Document extension rollback strategy.
+- Document compatibility testing against supported browser versions.
