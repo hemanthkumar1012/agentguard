@@ -10,3 +10,4 @@ This ledger records small, reviewable engineering improvements made while harden
 - Document that browser tokens must remain short-lived and scoped.
 - Document fail-closed behavior for unavailable policy enforcement.
 - Document audit events as security evidence rather than UI telemetry.
+- Document approval fingerprints as exact-request authorization.
