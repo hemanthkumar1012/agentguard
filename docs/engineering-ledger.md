@@ -61,3 +61,4 @@ This ledger records small, reviewable engineering improvements made while harden
 - Document health checks for database connectivity.
 - Document health checks for policy loading.
 - Document health checks for required configuration.
+- Document frontend loading states for security data.
