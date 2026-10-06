@@ -114,3 +114,4 @@ This ledger records small, reviewable engineering improvements made while harden
 - Document incident response steps for repeated authorization failures.
 - Document incident response steps for audit integrity failures.
 - Document incident response steps for suspected token compromise.
+- Document incident response steps for leaked deployment secrets.
