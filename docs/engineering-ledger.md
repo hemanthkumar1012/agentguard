@@ -28,3 +28,4 @@ This ledger records small, reviewable engineering improvements made while harden
 - Document production and preview environment differences.
 - Keep health endpoints lightweight and safe to expose.
 - Rate-limit browser security endpoints independently from general API traffic.
+- Return structured decision metadata so clients can render security state.
