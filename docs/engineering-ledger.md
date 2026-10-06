@@ -37,3 +37,4 @@ This ledger records small, reviewable engineering improvements made while harden
 - Reject ambiguous policy inputs instead of guessing.
 - Document default-deny behavior for unknown actions.
 - Document default-deny behavior for unknown agents.
+- Document explicit allowlists for sensitive tools.
