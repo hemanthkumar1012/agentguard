@@ -40,3 +40,4 @@ This ledger records small, reviewable engineering improvements made while harden
 - Document explicit allowlists for sensitive tools.
 - Document external-target classification rules.
 - Document local-versus-external target handling.
+- Document transport security requirements for external calls.
