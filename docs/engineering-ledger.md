@@ -64,3 +64,4 @@ This ledger records small, reviewable engineering improvements made while harden
 - Document frontend loading states for security data.
 - Document frontend empty states so missing events are not mistaken for zero risk.
 - Document frontend error states for unavailable backend services.
+- Document approval UI as an operator action rather than automatic authorization.
