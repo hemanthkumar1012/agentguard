@@ -81,3 +81,4 @@ This ledger records small, reviewable engineering improvements made while harden
 - Document extension rollback strategy.
 - Document compatibility testing against supported browser versions.
 - Document graceful behavior on unsupported websites.
+- Document dependency pinning for reproducible backend builds.
