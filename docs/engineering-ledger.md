@@ -32,3 +32,4 @@ This ledger records small, reviewable engineering improvements made while harden
 - Keep blocked requests from reaching downstream tool execution.
 - Define agent identity as a prerequisite for every protected action.
 - Keep policy rules versioned so authorization behavior can be reviewed historically.
+- Document policy identifiers in audit records when available.
