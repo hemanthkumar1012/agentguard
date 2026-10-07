@@ -1,0 +1,130 @@
+# AgentGuard Engineering Ledger
+
+This ledger records small, reviewable engineering improvements made while hardening AgentGuard. Each entry corresponds to a real repository change and is intentionally kept separate so the history remains easy to audit.
+
+## Improvements
+
+- Establish a dedicated engineering ledger for security, reliability, testing, and documentation work.
+
+- Document the backend API as the authoritative enforcement boundary.
+- Document that browser tokens must remain short-lived and scoped.
+- Document fail-closed behavior for unavailable policy enforcement.
+- Document audit events as security evidence rather than UI telemetry.
+- Document approval fingerprints as exact-request authorization.
+- Define agent identity as a prerequisite for every protected action.
+- Keep authorization decisions independent from presentation-layer UI state.
+- Treat policy evaluation as deterministic and reproducible.
+- Keep high-impact actions explicit instead of inferred from UI labels.
+- Record risk factors alongside the final risk score for operator review.
+- Preserve request IDs across gateway, audit, and API responses.
+- Keep sensitive-data classifications separate from action risk.
+- Require approval only when policy semantics explicitly demand it.
+- Ensure approval records have an expiration boundary.
+- Prevent an approval from silently authorizing a different request.
+- Keep credential scope narrower than agent identity scope.
+- Never place permanent operator API keys in browser code.
+- Keep Supabase service credentials server-side.
+- Use environment variables for deployment-specific backend configuration.
+- Document production and preview environment differences.
+- Keep health endpoints lightweight and safe to expose.
+- Rate-limit browser security endpoints independently from general API traffic.
+- Return structured decision metadata so clients can render security state.
+- Keep blocked requests from reaching downstream tool execution.
+- Define agent identity as a prerequisite for every protected action.
+- Keep policy rules versioned so authorization behavior can be reviewed historically.
+- Document policy identifiers in audit records when available.
+- Keep policy evaluation order deterministic.
+- Reject ambiguous policy inputs instead of guessing.
+- Document default-deny behavior for unknown actions.
+- Document default-deny behavior for unknown agents.
+- Document explicit allowlists for sensitive tools.
+- Document external-target classification rules.
+- Document local-versus-external target handling.
+- Document transport security requirements for external calls.
+- Document database availability expectations for security state.
+- Document how durable audit writes should behave during transient failures.
+- Keep authorization from silently degrading to unpersisted state.
+- Document Redis as a transport layer rather than the source of truth.
+- Document Supabase/PostgreSQL as durable security state storage.
+- Document database migrations as reviewable production changes.
+- Document migration ordering and compatibility expectations.
+- Document backup and restore considerations for audit data.
+- Document retention expectations for security events.
+- Document privacy boundaries for stored prompt-derived findings.
+- Document structured logging fields for request correlation.
+- Keep logs free of bearer tokens and credential values.
+- Document safe logging of agent identifiers.
+- Document safe logging of action names and decision outcomes.
+- Keep exception responses separate from internal stack traces.
+- Document production error handling expectations.
+- Document operator-facing diagnostics without exposing secrets.
+- Document health checks for database connectivity.
+- Document health checks for policy loading.
+- Document health checks for required configuration.
+- Document frontend loading states for security data.
+- Document frontend empty states so missing events are not mistaken for zero risk.
+- Document frontend error states for unavailable backend services.
+- Document approval UI as an operator action rather than automatic authorization.
+- Document that dashboard controls should reflect server decisions.
+- Document keyboard accessibility for security controls.
+- Document visible focus states for operator actions.
+- Document confirmation requirements for destructive operator actions.
+- Document browser extension status indicators as non-authoritative UI.
+- Document clear user messaging for blocked browser prompts.
+- Document browser provider selector changes as an integration risk.
+- Document real-site smoke testing before browser extension releases.
+- Document deterministic local browser fixtures for repeatable tests.
+- Document E2E test isolation from production credentials.
+- Document temporary localhost permissions as test-only configuration.
+- Document release package validation before publishing.
+- Document extension versioning rules for browser store releases.
+- Document extension rollback strategy.
+- Document compatibility testing against supported browser versions.
+- Document graceful behavior on unsupported websites.
+- Document dependency pinning for reproducible backend builds.
+- Document dependency update review for security-sensitive packages.
+- Document frontend dependency audit expectations.
+- Document Node and Python runtime version expectations.
+- Document CI cache invalidation when lockfiles change.
+- Document lint and type-check expectations for frontend changes.
+- Document Python test expectations for backend changes.
+- Document build validation before deployment.
+- Document Docker image build validation.
+- Document configuration validation during CI.
+- Document API versioning expectations for security endpoints.
+- Document backward-compatible additions to browser gateway responses.
+- Document explicit deprecation handling for security API fields.
+- Document request schema validation at API boundaries.
+- Document response schema stability for extension clients.
+- Document maximum request size expectations for prompt inspection.
+- Document safe handling of malformed JSON requests.
+- Document safe handling of missing required request fields.
+- Document safe handling of unsupported content types.
+- Document safe handling of unexpected upstream failures.
+- Document threat modeling for prompt injection against browser agents.
+- Document threat modeling for stolen short-lived browser tokens.
+- Document threat modeling for compromised browser sessions.
+- Document threat modeling for malicious external targets.
+- Document threat modeling for unauthorized credential use.
+- Document threat modeling for approval replay attempts.
+- Document threat modeling for audit tampering.
+- Document threat modeling for policy misconfiguration.
+- Document threat modeling for frontend proxy exposure.
+- Document threat modeling for supply-chain dependency compromise.
+- Document incident response steps for repeated authorization failures.
+- Document incident response steps for audit integrity failures.
+- Document incident response steps for suspected token compromise.
+- Document incident response steps for leaked deployment secrets.
+- Document incident response steps for unexpected policy changes.
+- Document incident response steps for abnormal approval volume.
+- Document operator escalation paths for security incidents.
+- Document credential rotation expectations after suspected exposure.
+- Document browser token reissuance after suspected compromise.
+- Document post-incident review requirements for enforcement failures.
+- Document security review criteria for new protected actions.
+- Document security review criteria for new credential scopes.
+- Document security review criteria for new browser providers.
+- Document security review criteria for policy changes.
+- Document security review criteria for new external integrations.
+- Document security review criteria for changes to authentication flows.
+- Document security review criteria for audit schema changes.
