@@ -7,7 +7,7 @@ load_dotenv()
 
 
 class Settings(BaseModel):
-    app_name: str = os.getenv("AGENTGUARD_APP_NAME", "AgentGuard API")
+    app_name: str = os.getenv("AGENTGUARD_APP_NAME", "SentinelForge API")
     environment: str = os.getenv("AGENTGUARD_ENV", "development")
     cors_origins: str = os.getenv("AGENTGUARD_CORS_ORIGINS", "http://localhost:3000")
     policy_version: str = os.getenv("AGENTGUARD_POLICY_VERSION", "2026.09")

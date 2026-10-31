@@ -13,4 +13,23 @@ services:
       AGENTGUARD_OPERATORS: ${AGENTGUARD_OPERATORS:-}
       SUPABASE_URL: ${SUPABASE_URL:-}
       SUPABASE_SERVICE_KEY: ${SUPABASE_SERVICE_KEY:-}
+      # Optional: load a YAML policy pack instead of the built-in fintech rules.
+      AGENTGUARD_POLICY_FILE: ${AGENTGUARD_POLICY_FILE:-}
+      # Optional: enable the LLM-backed agent version (any OpenAI-compatible endpoint).
+      SENTINELFORGE_LLM_API_KEY: ${SENTINELFORGE_LLM_API_KEY:-}
+      SENTINELFORGE_LLM_BASE_URL: ${SENTINELFORGE_LLM_BASE_URL:-}
+      SENTINELFORGE_LLM_MODEL: ${SENTINELFORGE_LLM_MODEL:-gpt-4o-mini}
+    restart: unless-stopped
+
+  console:
+    build:
+      context: ./frontend
+    ports:
+      - "3000:3000"
+    environment:
+      AGENTGUARD_BACKEND_URL: http://api:8000
+      # Server-side only; never exposed to the browser. Use an admin or reviewer operator key.
+      AGENTGUARD_API_KEY: ${AGENTGUARD_API_KEY:-}
+    depends_on:
+      - api
     restart: unless-stopped

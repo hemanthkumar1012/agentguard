@@ -10,9 +10,11 @@ class CreateApprovalRequest(BaseModel):
 
 
 class DecideApprovalRequest(BaseModel):
-    approved: bool
+    approved: bool = False
     decided_by: str = Field(min_length=1, max_length=100)
     note: str | None = Field(default=None, max_length=1000)
+    decided_by_role: str | None = Field(default=None, max_length=50)
+    request_info: bool = Field(default=False, description="Ask the requester for more information instead of deciding.")
 
 
 def serialize(item):
@@ -27,6 +29,8 @@ def serialize(item):
         "decided_by": item.decided_by,
         "decided_at": item.decided_at,
         "consumed_at": item.consumed_at,
+        "approver_role": item.approver_role,
+        "context": item.context,
     }
 
 
@@ -36,8 +40,13 @@ def create_approval(request: CreateApprovalRequest):
 
 
 @router.get("")
-def list_approvals():
-    return {"approvals": [serialize(item) for item in approval_store.list()]}
+def list_approvals(status: str | None = None, approver_role: str | None = None):
+    items = approval_store.list()
+    if status:
+        items = [i for i in items if i.status == status]
+    if approver_role:
+        items = [i for i in items if i.approver_role == approver_role]
+    return {"approvals": [serialize(item) for item in items]}
 
 
 @router.get("/{approval_id}")
@@ -51,7 +60,11 @@ def get_approval(approval_id: str):
 @router.post("/{approval_id}/decision")
 def decide_approval(approval_id: str, request: DecideApprovalRequest):
     try:
-        return serialize(approval_store.decide(approval_id, request.approved, request.decided_by, request.note))
+        return serialize(approval_store.decide(approval_id, request.approved, request.decided_by, request.note,
+                                               decided_by_role=request.decided_by_role,
+                                               request_info=request.request_info))
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except ValueError as exc:

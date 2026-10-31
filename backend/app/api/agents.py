@@ -52,6 +52,21 @@ def suspend_agent(agent_id: str):
         raise HTTPException(status_code=404, detail="Agent identity not found") from exc
 
 
+@router.post("/{agent_id}/reinstate")
+def reinstate_agent(agent_id: str):
+    """Return an identity suspended by an operator or the session kill switch to service."""
+    from app.services import session_guard
+
+    try:
+        agent = agent_registry.reinstate(agent_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="Agent identity not found") from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    session_guard.reset_trips(agent_id)
+    return _serialize_agent(agent)
+
+
 @router.post("/{agent_id}/revoke")
 def revoke_agent(agent_id: str):
     try:

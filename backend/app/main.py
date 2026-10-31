@@ -16,14 +16,24 @@ from app.api.mcp import router as mcp_router
 from app.api.security import router as security_router
 from app.api.simulator import router as simulator_router
 from app.api.tools import router as tools_router
+from app.api.agent_runs import router as agent_runs_router
+from app.api.evaluations import router as evaluations_router
+from app.api.observability import router as observability_router
+from app.api.orchestrations import router as orchestrations_router
+from app.api.policies import router as policies_router
+from app.api.redteam import router as redteam_router
+from app.api.sessions import router as sessions_router
 from app.config import settings
 from app.rate_limit import RateLimiter
 from app.operator_auth import authenticate, can_access
 
 app = FastAPI(
     title=settings.app_name,
-    version="1.0.0",
-    description="Runtime security and authorization control plane for AI agents.",
+    version="2.0.0",
+    description=(
+        "SentinelForge: policy enforcement, evaluation and observability for production AI agents. "
+        "Every agent tool call is authorized by the gateway, traced, audited and covered by release gates."
+    ),
 )
 
 app.add_middleware(
@@ -125,3 +135,10 @@ app.include_router(mcp_router, prefix="/api/v1")
 app.include_router(control_plane_router, prefix="/api/v1")
 app.include_router(approvals_router, prefix="/api/v1")
 app.include_router(delegations_router, prefix="/api/v1")
+app.include_router(policies_router, prefix="/api/v1")
+app.include_router(agent_runs_router, prefix="/api/v1")
+app.include_router(observability_router, prefix="/api/v1")
+app.include_router(evaluations_router, prefix="/api/v1")
+app.include_router(orchestrations_router, prefix="/api/v1")
+app.include_router(redteam_router, prefix="/api/v1")
+app.include_router(sessions_router, prefix="/api/v1")

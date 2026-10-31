@@ -25,6 +25,14 @@ class AuditEvent:
     created_at: datetime
     previous_hash: str
     event_hash: str
+    # Added after the first persisted schema. They are excluded from the hash when
+    # empty so that chains written before these fields existed still verify.
+    policy_id: str | None = None
+    trace_id: str | None = None
+    tenant_id: str | None = None
+
+
+_OPTIONAL_HASH_FIELDS = ("policy_id", "trace_id", "tenant_id")
 
 
 class AuditLedger:
@@ -66,12 +74,18 @@ class AuditLedger:
             created_at=created_at,
             previous_hash=row["previous_hash"],
             event_hash=row["event_hash"],
+            policy_id=row.get("policy_id"),
+            trace_id=row.get("trace_id"),
+            tenant_id=row.get("tenant_id"),
         )
 
     @staticmethod
     def _hash_payload(event: AuditEvent) -> str:
         payload = asdict(event)
         payload.pop("event_hash", None)
+        for key in _OPTIONAL_HASH_FIELDS:
+            if payload.get(key) is None:
+                payload.pop(key, None)
         payload["risk_score"] = float(event.risk_score)
         payload["created_at"] = event.created_at.isoformat()
         canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"))
@@ -92,6 +106,9 @@ class AuditLedger:
         correlation_id: str | None = None,
         policy_version: str = "2026.09",
         event_type: str = "authorization.decision",
+        policy_id: str | None = None,
+        trace_id: str | None = None,
+        tenant_id: str | None = None,
     ) -> AuditEvent:
         with self._lock:
             previous_hash = self._events[-1].event_hash if self._events else self._initial_previous_hash
@@ -113,6 +130,9 @@ class AuditLedger:
                 created_at=datetime.now(timezone.utc),
                 previous_hash=previous_hash,
                 event_hash="",
+                policy_id=policy_id,
+                trace_id=trace_id,
+                tenant_id=tenant_id,
             )
             event = AuditEvent(**{**asdict(event), "event_hash": self._hash_payload(event)})
             if self.store is not None:
@@ -130,6 +150,9 @@ class AuditLedger:
 
     def list_events(self) -> list[dict]:
         return [asdict(event) for event in reversed(self._events)]
+
+    def events_for_trace(self, trace_id: str) -> list[dict]:
+        return [asdict(event) for event in self._events if event.trace_id == trace_id]
 
     def count(self) -> int:
         return len(self._events)

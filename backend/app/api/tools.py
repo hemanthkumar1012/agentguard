@@ -65,11 +65,14 @@ def execute_tool(request: ToolExecutionRequest):
         consume_approval=True,
     )
 
-    if authorization.decision.decision != Decision.ALLOW:
-        return {"executed": False, "decision": authorization.decision, "event_id": authorization.event_id}
+    decision = authorization.decision
+    if not decision.decision.is_executable:
+        return {"executed": False, "decision": decision, "event_id": authorization.event_id}
 
+    # ALLOW_WITH_REDACTION: the tool only ever sees the redacted payload.
+    payload = decision.redacted_payload if decision.decision == Decision.ALLOW_WITH_REDACTION else request.payload
     try:
-        result = runtime.execute(request.agent_id, request.tool, request.action, request.payload)
+        result = runtime.execute(request.agent_id, request.tool, request.action, payload)
     except KeyError as exc:
         record_execution_error(request, authorization.decision.risk_score, "Requested tool handler is not registered.")
         raise HTTPException(status_code=404, detail=str(exc)) from exc

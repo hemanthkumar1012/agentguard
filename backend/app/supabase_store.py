@@ -4,7 +4,11 @@ import os
 from datetime import datetime, timezone
 from typing import Any
 
-from supabase import Client, create_client
+try:  # The adapter is optional: local development and tests run without Supabase.
+    from supabase import Client, create_client
+except ImportError:  # pragma: no cover - depends on installed extras
+    Client = Any  # type: ignore[misc,assignment]
+    create_client = None
 
 
 class SupabaseStore:
@@ -19,6 +23,8 @@ class SupabaseStore:
         key = os.getenv("SUPABASE_SERVICE_KEY")
         if not url or not key:
             return None
+        if create_client is None:
+            raise RuntimeError("SUPABASE_URL is set but the 'supabase' package is not installed")
         return cls(create_client(url, key))
 
     def list_agents(self) -> list[dict[str, Any]]:
@@ -95,6 +101,7 @@ class SupabaseStore:
             "decided_by": approval.decided_by,
             "decided_at": approval.decided_at.isoformat() if approval.decided_at else None,
             "consumed_at": approval.consumed_at.isoformat() if approval.consumed_at else None,
+            "approver_role": approval.approver_role, "context": approval.context,
         }).execute()
 
     @staticmethod
@@ -107,17 +114,19 @@ class SupabaseStore:
             decided_by=row.get("decided_by"),
             decided_at=datetime.fromisoformat(row["decided_at"].replace("Z", "+00:00")) if row.get("decided_at") else None,
             consumed_at=datetime.fromisoformat(row["consumed_at"].replace("Z", "+00:00")) if row.get("consumed_at") else None,
+            approver_role=row.get("approver_role"),
+            context=row.get("context") or {},
         )
 
     def get_approval(self, approval_id: str):
         rows = self.client.table("approvals").select(
-            "approval_id,event_id,requested_by,request_fingerprint,status,decision_note,expires_at,decided_by,decided_at,consumed_at"
+            "approval_id,event_id,requested_by,request_fingerprint,status,decision_note,expires_at,decided_by,decided_at,consumed_at,approver_role,context"
         ).eq("approval_id", approval_id).limit(1).execute().data or []
         return self._approval(rows[0]) if rows else None
 
     def list_approvals(self):
         rows = self.client.table("approvals").select(
-            "approval_id,event_id,requested_by,request_fingerprint,status,decision_note,expires_at,decided_by,decided_at,consumed_at"
+            "approval_id,event_id,requested_by,request_fingerprint,status,decision_note,expires_at,decided_by,decided_at,consumed_at,approver_role,context"
         ).order("created_at", desc=True).execute().data or []
         return [self._approval(row) for row in rows]
 
@@ -136,7 +145,7 @@ class SupabaseStore:
 
     def list_security_events(self) -> list[dict[str, Any]]:
         return self.client.table("security_events").select(
-            "event_id,agent_id,action,target,decision,risk_score,reason,risk_factors,data_findings,tool,credential_id,correlation_id,policy_version,event_type,created_at,previous_hash,event_hash"
+            "event_id,agent_id,action,target,decision,risk_score,reason,risk_factors,data_findings,tool,credential_id,correlation_id,policy_version,event_type,created_at,previous_hash,event_hash,policy_id,trace_id,tenant_id"
         ).order("created_at", desc=False).execute().data or []
 
     def insert_security_event(self, event: Any) -> None:
@@ -149,7 +158,20 @@ class SupabaseStore:
             "reason": event.reason, "policy_version": event.policy_version,
             "created_at": event.created_at.isoformat(), "previous_hash": event.previous_hash,
             "event_hash": event.event_hash,
+            "policy_id": event.policy_id, "trace_id": event.trace_id, "tenant_id": event.tenant_id,
         }).execute()
+
+    def upsert_trace(self, trace: dict[str, Any]) -> None:
+        self.client.table("agent_traces").upsert({
+            "trace_id": trace["trace_id"], "tenant_id": trace.get("tenant_id"), "user_id": trace.get("user_id"),
+            "agent_id": trace.get("agent_id"), "agent_version": trace.get("agent_version"), "model": trace.get("model"),
+            "prompt_version": trace.get("prompt_version"), "status": trace["status"], "input": trace["input"],
+            "output": trace.get("output"), "started_at": trace["started_at"], "ended_at": trace.get("ended_at"),
+            "duration_ms": trace.get("duration_ms"), "input_tokens": trace.get("input_tokens", 0),
+            "output_tokens": trace.get("output_tokens", 0), "cost_inr": trace.get("cost_inr", 0),
+            "blocked_actions": trace.get("blocked_actions", 0), "max_risk": trace.get("max_risk", 0),
+            "policies": trace.get("policies", []), "spans": trace.get("spans", []), "tags": trace.get("tags", {}),
+        }, on_conflict="trace_id").execute()
 
     def healthcheck(self) -> bool:
         self.client.table("security_events").select("event_id").limit(1).execute()

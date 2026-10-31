@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 import hashlib
 import json
@@ -18,6 +18,9 @@ class Approval:
     decided_by: str | None = None
     decided_at: datetime | None = None
     consumed_at: datetime | None = None
+    approver_role: str | None = None
+    # What the approver sees: action, target, arguments, risk, reason, evidence.
+    context: dict = field(default_factory=dict)
 
 
 class ApprovalStore:
@@ -44,7 +47,14 @@ class ApprovalStore:
         canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"), default=str)
         return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
-    def create(self, requested_by: str, event_id: str | None = None, request_fingerprint: str = "") -> Approval:
+    def create(
+        self,
+        requested_by: str,
+        event_id: str | None = None,
+        request_fingerprint: str = "",
+        approver_role: str | None = None,
+        context: dict | None = None,
+    ) -> Approval:
         approval = Approval(
             approval_id=f"apr_{uuid4().hex[:16]}",
             event_id=event_id,
@@ -53,6 +63,8 @@ class ApprovalStore:
             status="pending",
             decision_note=None,
             expires_at=datetime.now(timezone.utc) + timedelta(seconds=self.ttl_seconds),
+            approver_role=approver_role,
+            context=dict(context or {}),
         )
         if self.store is not None:
             self.store.insert_approval(approval)
@@ -65,19 +77,39 @@ class ApprovalStore:
             approval = self.store.get_approval(approval_id)
             if approval is not None:
                 self._items[approval_id] = approval
-        if approval and approval.status == "pending" and approval.expires_at <= datetime.now(timezone.utc):
+        if approval and approval.status in {"pending", "info_requested"} and approval.expires_at <= datetime.now(timezone.utc):
             approval.status = "expired"
             if self.store is not None:
                 self.store.update_approval(approval)
         return approval
 
-    def decide(self, approval_id: str, approved: bool, decided_by: str, note: str | None = None) -> Approval:
+    def decide(
+        self,
+        approval_id: str,
+        approved: bool,
+        decided_by: str,
+        note: str | None = None,
+        decided_by_role: str | None = None,
+        request_info: bool = False,
+    ) -> Approval:
         with self._lock:
             approval = self.get(approval_id)
             if approval is None:
                 raise KeyError("Approval not found")
-            if approval.status != "pending":
+            if approval.status not in {"pending", "info_requested"}:
                 raise ValueError(f"Approval is already {approval.status}")
+            # Separation of duties: when a rule names an approver role, a caller that
+            # declares a different role cannot decide it ("admin" may always decide).
+            if approval.approver_role and decided_by_role and decided_by_role not in {approval.approver_role, "admin"}:
+                raise PermissionError(f"Approval requires role '{approval.approver_role}'")
+            if decided_by == approval.requested_by:
+                raise PermissionError("The requesting agent cannot approve its own request")
+            if request_info:
+                approval.status = "info_requested"
+                approval.decision_note = note
+                if self.store is not None:
+                    self.store.update_approval(approval)
+                return approval
             approval.status = "approved" if approved else "denied"
             approval.decided_by = decided_by
             approval.decision_note = note
