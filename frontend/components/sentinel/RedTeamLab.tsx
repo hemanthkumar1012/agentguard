@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Crosshair } from "lucide-react";
 import { AgentVersion, sfGet, sfPost } from "../../lib/sf";
+import { FuzzLab } from "./FuzzLab";
 import { DecisionPill, ErrorNote, PageHeader, PanelHead, TraceLink } from "./ui";
 
 type AttackResult = {
@@ -32,6 +33,21 @@ type Report = {
 };
 
 export function RedTeamLab({ onOpenTrace }: { onOpenTrace: (id: string) => void }) {
+  const [tab, setTab] = useState<"suite" | "fuzz">("suite");
+  return (
+    <>
+      <PageHeader eyebrow="RED TEAM" title="Prompt-Injection Defense Lab"
+        sub="Attacks from user messages, documents, PDFs, web pages, email, database fields and other agents. Runs in an isolated sandbox: nothing real is sent or exported." />
+      <div className="tabs" role="tablist">
+        <button role="tab" aria-selected={tab === "suite"} className={tab === "suite" ? "active" : ""} onClick={() => setTab("suite")}>Attack suite (curated)</button>
+        <button role="tab" aria-selected={tab === "fuzz"} className={tab === "fuzz" ? "active" : ""} onClick={() => setTab("fuzz")}>Adaptive fuzzer</button>
+      </div>
+      {tab === "suite" ? <AttackSuite onOpenTrace={onOpenTrace} /> : <FuzzLab onOpenTrace={onOpenTrace} />}
+    </>
+  );
+}
+
+function AttackSuite({ onOpenTrace }: { onOpenTrace: (id: string) => void }) {
   const [versions, setVersions] = useState<AgentVersion[]>([]);
   const [versionId, setVersionId] = useState("support-agent-v2.0");
   const [report, setReport] = useState<Report | null>(null);
@@ -62,8 +78,6 @@ export function RedTeamLab({ onOpenTrace }: { onOpenTrace: (id: string) => void 
   const contained = report ? report.results.filter((r) => r.gateway_contained).length : 0;
   return (
     <>
-      <PageHeader eyebrow="RED TEAM" title="Prompt-Injection Defense Lab"
-        sub="Attacks from user messages, documents, PDFs, web pages, email, database fields and other agents. Runs in an isolated sandbox: nothing real is sent or exported." />
       <section className="panel">
         <div className="form inline">
           <select value={versionId} onChange={(e) => setVersionId(e.target.value)}>

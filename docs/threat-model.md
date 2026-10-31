@@ -28,6 +28,9 @@ Applications.
 | T11 | Environment spoofing | Request claims `development` to skip production escalation | Environment taken from the registered identity | `test_production_environment_is_taken_from_agent_identity` |
 | T12 | Audit tampering | Editing or deleting an event | SHA-256 hash chain; readiness check; Prometheus `audit_chain_valid` | Existing audit-integrity tests |
 | T13 | Policy misconfiguration | A typo silently weakens a rule | Unknown conditions and wrong types rejected; a configured policy file that fails stops startup; dry-run simulation | `test_unknown_condition_key_rejected` |
+| T15 | Obfuscated or adaptive injection | base64, homoglyph, translated, letter-spaced or document-split payloads | De-obfuscating detector (`comprehend()`), spacing-insensitive check gated on obfuscation evidence, policy containment independent of detection | Adaptive red-team: 99.2% detection, 100% containment over 1,000 variants, 0 / 84 false positives |
+| T16 | Persistent / low-and-slow attack within a session | A hijacked agent retries export, email, foreign reads after each block | Session risk accumulation, Markov sequence anomaly, elevated-session approvals, circuit breaker, identity kill switch | `test_session_guard.py`; `support-agent-compromised` |
+| T17 | Unsafe policy change | Raising the refund threshold silently lets ₹18,000 refunds through | Decision-log replay, re-running the eval suite under the candidate, relaxation acknowledgement, shadow mode, canary with auto-rollback | `test_policy_rollout.py`; impact verdict UNSAFE for the ₹20,000 threshold |
 | T14 | Console key exposure | Browser obtains the admin key | Key stays server-side; the proxy forwards only an allowlist (no policy replacement, identity registration or credential revocation) | `frontend/app/api/sf/[...path]/route.ts` |
 
 ## A finding from the evaluation suite
@@ -37,6 +40,15 @@ The first evaluation of `support-agent-v2.0` showed containment below 100%. A �
 order. The fix was a new rule, `refund-requires-order`, plus the dataset case `mis-*` "goodwill credit, no
 order needed". This is the loop the platform exists for: a regression found by evals becomes a policy and a
 test.
+
+## Findings from the adaptive red-team
+
+The first fuzzing run against the hijackable v2.0 found that **44.2%** of 600 variants breached containment.
+All of them were system-prompt leaks, because the gateway governs actions, not words. It also found that
+base64, homoglyph and translated payloads were almost never detected. Both were fixed: the output guard strips
+system-prompt disclosure, and the detector scores the de-obfuscated reading. The next run of 1,000 variants
+reached 100% containment and 99.2% detection with no benign false positives. Details in
+[adaptive-red-team.md](adaptive-red-team.md).
 
 ## Known limits
 

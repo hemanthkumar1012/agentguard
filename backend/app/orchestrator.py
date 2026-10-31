@@ -105,6 +105,9 @@ class Orchestrator:
                     observations.append((specialist, obs))
                     if obs.decision in {"require_approval", "escalate_to_human"}:
                         state.pending_request = None  # orchestrator hands approvals to the escalation path
+                    guard = self.tools.gateway.session_guard
+                    if guard is not None and guard.is_tripped(state.run_id):
+                        break
                 agent_span.attributes["actions"] = [o.action for s, o in observations if s == specialist]
 
         with self.traces.span(trace, "agent", "responder", agent_id=self.identities["responder"]) as responder:
@@ -113,7 +116,10 @@ class Orchestrator:
             responder.attributes["verified_inputs"] = len(verified)
 
         blocked = any(o.decision in {"block", "rate_limit"} for _, o in observations)
+        guard = self.tools.gateway.session_guard
         status = "completed_with_blocks" if blocked else "completed"
+        if guard is not None and guard.is_tripped(state.run_id):
+            status = "quarantined"
         self.traces.finish(trace, status, output)
         return OrchestrationResult(trace.trace_id, status, output, route,
                                    [{"agent": s, **asdict(o)} for s, o in observations],

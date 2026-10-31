@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   LayoutDashboard, Users, Activity, CheckCircle2, ShieldAlert, Key, Network, Target, ShieldCheck,
-  AlertTriangle, XCircle, RefreshCw, MessageSquare, ListTree, FlaskConical, Workflow, Coins, Timer,
+  AlertTriangle, XCircle, RefreshCw, MessageSquare, ListTree, FlaskConical, Workflow, Coins, Timer, Gauge,
 } from "lucide-react";
 import { RiskChart, RiskPoint } from "../components/RiskChart";
 import { TerminalStream } from "../components/TerminalStream";
@@ -16,6 +16,7 @@ import { Evaluations } from "../components/sentinel/Evaluations";
 import { RedTeamLab } from "../components/sentinel/RedTeamLab";
 import { MultiAgent } from "../components/sentinel/MultiAgent";
 import { PolicyStudio } from "../components/sentinel/PolicyStudio";
+import { SessionGuard } from "../components/sentinel/SessionGuard";
 import { DecisionPill } from "../components/sentinel/ui";
 import { inr, sfGet } from "../lib/sf";
 
@@ -29,13 +30,14 @@ type Snapshot = {
   recent_events: Event[];
 };
 type Stats = { runs: number; avg_latency_ms: number; p95_latency_ms: number; total_cost_inr: number; total_tokens: number; blocked_actions: number; tool_errors: number; by_status: Record<string, number>; risk_trend: RiskPoint[] };
-export type View = "overview" | "playground" | "traces" | "approvals" | "evaluations" | "redteam" | "multiagent" | "policies" | "agents" | "events" | "credentials" | "mcp";
+export type View = "overview" | "sessions" | "playground" | "traces" | "approvals" | "evaluations" | "redteam" | "multiagent" | "policies" | "agents" | "events" | "credentials" | "mcp";
 
 const fallback: Snapshot = { agents: { total: 0, active: 0, suspended: 0, revoked: 0 }, decisions: { total: 0, allow: 0, require_approval: 0, block: 0 }, risk: { average: 0, maximum: 0, high_risk_events: 0 }, recent_events: [] };
 export const nav: { id: View; label: string; icon: React.ReactNode; group: string }[] = [
   { id: "overview", label: "Overview", icon: <LayoutDashboard size={18} />, group: "Monitor" },
   { id: "traces", label: "Trace Explorer", icon: <ListTree size={18} />, group: "Monitor" },
   { id: "approvals", label: "Approval Inbox", icon: <ShieldAlert size={18} />, group: "Monitor" },
+  { id: "sessions", label: "Session Guard", icon: <Gauge size={18} />, group: "Monitor" },
   { id: "playground", label: "Agent Playground", icon: <MessageSquare size={18} />, group: "Agents" },
   { id: "multiagent", label: "Multi-Agent", icon: <Workflow size={18} />, group: "Agents" },
   { id: "evaluations", label: "Evaluations", icon: <FlaskConical size={18} />, group: "Release" },
@@ -124,6 +126,7 @@ export default function Home() {
             {view === "redteam" && <RedTeamLab onOpenTrace={openTrace} />}
             {view === "multiagent" && <MultiAgent onOpenTrace={openTrace} />}
             {view === "policies" && <PolicyStudio />}
+            {view === "sessions" && <SessionGuard onOpenTrace={openTrace} />}
             {["agents", "events", "credentials", "mcp"].includes(view) && <DetailView view={view} items={items} refresh={() => loadView(view)} />}
           </motion.div>
         </AnimatePresence>

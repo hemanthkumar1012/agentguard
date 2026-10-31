@@ -43,6 +43,7 @@ Rate-limit tokens are only consumed by requests that would otherwise run.
 | `not_<any of the above>` | string or list | the request value is **not** in the list (an absent value counts as not in it) |
 | `amount_greater_than` / `amount_at_most` | number | `execution_payload.amount` is numeric and compares (non-numeric amounts never match) |
 | `risk_at_least` / `risk_below` | number | the effective risk score after inspection compares |
+| `session_risk_at_least` | number | the conversation's cumulative session risk compares (see [session guard](session-guard.md)) |
 | `has_findings` | bool | PII or secrets were found in content or payload |
 | `injection_detected` | bool | the content's injection score is ≥ 40 |
 | `target_external` | bool | the target is a URL, contains "external", or is an email outside internal domains |
@@ -67,4 +68,6 @@ Unknown condition keys and wrong types are rejected at load time, so a typo cann
 * `POST /api/v1/policies/simulate` (or the console's Policy Studio) previews the decision for any request
   with no audit event, approval or rate-limit token used.
 * `python scripts/release_gate.py <version>` replays all 156 evaluation cases against the live rules.
+* `POST /api/v1/policies/impact` replays recorded decisions and re-runs the suite under the candidate for every
+  agent version; shadow mode and canaries let you try it on live traffic ([policy-rollout.md](policy-rollout.md)).
 * `policy/opa/sentinelforge.rego` mirrors the pack for OPA. `opa test policy/opa` runs the parity tests.

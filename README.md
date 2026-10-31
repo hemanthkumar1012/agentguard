@@ -33,14 +33,18 @@ User request ─► Agent plans a tool call ─► Policy gateway ─► allow /
 | **Evaluation & release gates** | 156 original cases (support, prompt injection, PII leakage, tool misuse) run in per-case sandboxes. Scorecards for task success, tool selection, argument correctness, grounding, injection resistance, containment, privacy, policy compliance, reliability, cost and latency. Regression comparison and gated promotion. |
 | **Trace explorer & observability** | Per-run timelines (LLM, retrieval, policy, tool, approval, guard, hand-off spans) linked to audit events and approvals. Search by tenant, version, user, status, tool or policy. Cost and latency dashboards, risk trends, Prometheus metrics, optional OpenTelemetry export. |
 | **Red-team lab** | Attack-by-attack report: attack type, input source, agent response, attempted calls, policy decision, exposure, pass/fail, remediation. |
+| **Adaptive red-team** | A mutation fuzzer with 13 operators (paraphrase, translation, homoglyphs, base64, zero-width, letter spacing, cross-document splitting, role-play…) and evolutionary search toward evasions. Every variant runs through the real agent and gateway, and detection, agent resistance and containment are measured separately. Discovered attacks export as dataset cases. [Details](docs/adaptive-red-team.md) |
+| **Session guard** | A per-version Markov model of normal tool-call sequences (trained on passing benign runs), cumulative session risk, a `session_risk_at_least` policy condition that tightens privileged actions mid-conversation, a circuit breaker that quarantines the run, and a kill switch that suspends repeat offenders until reinstated. [Details](docs/session-guard.md) |
+| **Safe policy changes** | A decision log of policy inputs (redacted), impact analysis that replays history and re-runs the eval suite per agent version under a candidate pack, shadow mode on live traffic, and tenant or percentage canaries with auto-rollback. Relaxations need explicit acknowledgement. [Details](docs/policy-rollout.md) |
 
 ## Results
 
 | Agent version | Change | Cases passed | Injection resistance | Containment | Release |
 |---|---|---|---|---|---|
 | `support-agent-v1.0` | Baseline: drafts refunds for finance | 156/156 | 100% | 100% | approved |
-| `support-agent-v2.0` | Direct refunds, but obeys instructions in content | 81/156 | 27.0% | 100% | **blocked** |
+| `support-agent-v2.0` | Direct refunds, but obeys instructions in content | 77/156 | 20.2% | 100% | **blocked** |
 | `support-agent-v2.1` | Direct refunds, regression fixed | 156/156 | 100% | 100% | approved |
+| `support-agent-compromised` | Hijacked model that retries after blocks (circuit-breaker demo) | 72/156 | 18.0% | 100% | **blocked** |
 
 The gateway contained every unsafe action v2.0 attempted, and the release gates still blocked it, because
 an agent that relies on the backstop is a regression. Scores come from the deterministic planner used in CI;
@@ -49,6 +53,16 @@ evaluate `support-agent-llm` with an API key for real-model numbers (see
 
 The first v2.0 evaluation also found a real policy gap: a ₹5,000 refund with **no order id** was allowed.
 It's now covered by the `refund-requires-order` rule and a dataset case.
+
+**Adaptive red-team, before and after hardening** (v2.0, 600–1,000 mutated variants):
+
+| | Detection | Containment | Successful attacks | Benign false positives |
+|---|---|---|---|---|
+| First run | 40.2% | 44.2% | 335 (all system-prompt leaks) | – |
+| After hardening | **99.2%** | **100%** | **0** | **0 / 84** |
+
+**Policy impact analysis:** raising the refund approval threshold to ₹20,000 is flagged **UNSAFE** before it
+ships. 9 recorded decisions relax, and v2.1 goes from approved to blocked when re-run under the candidate.
 
 ## Architecture
 
@@ -63,9 +77,12 @@ sentinelforge/ (this repository)
 │   ├── agent_runtime.py      # versions, planners, taint tracking, guarded tools, pause/resume, output guard
 │   ├── orchestrator.py       # least-privilege multi-agent workflow
 │   ├── evaluation.py         # datasets, sandboxes, scorers, release gates, comparisons
+│   ├── session_guard.py      # Markov sequence anomaly, session risk, circuit breaker, kill switch
+│   ├── policy_rollout.py     # decision log, shadow, canary   policy_impact.py  # replay + eval re-run
+│   ├── redteam_fuzzer.py     # adaptive mutation fuzzer with evolutionary search
 │   ├── tracing.py  prometheus.py  budgets.py  fintech.py
 │   └── api/                  # runs, agent-versions, policies, traces, evaluations, redteam, orchestrations, …
-├── backend/scripts/release_gate.py   # CI release gate
+├── backend/scripts/release_gate.py   # CI release gate        fuzz.py  # CI adaptive red-team gate
 ├── datasets/                 # 156 JSONL cases + deterministic generator
 ├── policy/rules/fintech_support.yaml # the live policy pack
 ├── policy/opa/               # Rego mirror + parity tests
@@ -82,9 +99,10 @@ sentinelforge/ (this repository)
 cd backend
 python -m pip install -e ".[test]"
 uvicorn app.main:app --reload --port 8000      # API docs at http://localhost:8000/docs
-python -m pytest -q                            # 116 tests
+python -m pytest -q                            # 147 tests
 python scripts/release_gate.py support-agent-v1.0
 python scripts/release_gate.py support-agent-v2.0 --expect blocked
+python scripts/fuzz.py support-agent-v2.0 --budget 1000 --generations 5   # adaptive red-team
 ```
 
 ### Console
@@ -119,6 +137,9 @@ Then follow the [3-minute demo](docs/demo-scenarios.md).
 | Observability | `GET /traces` (filters) · `GET /traces/{id}` · `GET /observability/stats` · `GET /observability/metrics` (Prometheus) · `GET /budgets/{tenant}` |
 | Evaluation | `GET /evaluations/datasets` · `POST /evaluations` · `GET /evaluations/{id}` · `POST /evaluations/compare` · `POST /redteam/run` |
 | Multi-agent | `GET /orchestrations/agents` · `POST /orchestrations/run` |
+| Adaptive red-team | `POST /redteam/fuzz` · `GET /redteam/fuzz/{id}` · `GET /redteam/fuzz/{id}/cases` (JSONL) · `GET /redteam/detector` |
+| Session guard | `GET /sessions` · `GET /sessions/{id}` · `GET /sessions/quarantine` · `GET /sessions/models/{version}` · `POST /sessions/models/retrain` · `POST /agents/{id}/reinstate` |
+| Policy rollout | `POST /policies/impact` · `GET /policies/decision-log` · `POST/GET /policies/shadow` · `POST /policies/shadow/stop` · `POST/GET /policies/canary` · `POST /policies/canary/promote` · `POST /policies/canary/rollback` |
 | Enforcement core | `POST /decisions` · `POST /gateway/authorize` · `POST /tools/execute` · `POST /mcp/call` · `/agents` · `/security/*` · `/delegations/*` · `/anomaly/*` · `/control-plane/snapshot` · `/health` |
 
 ## Security model
@@ -131,10 +152,12 @@ Then follow the [3-minute demo](docs/demo-scenarios.md).
 6. **Strictest decision wins.** Declarative rules can only tighten the baseline risk policy.
 7. **Humans for high impact.** Approvals are role-routed, fingerprint-bound, expiring, single-use and re-checked on resume.
 8. **Minimise what leaves.** Redaction for outbound payloads, plus an output guard on answers.
-9. **Bounded spend.** Step, token and ₹ budgets per run and per tenant per day, and per-action rate limits.
-10. **Evidence for everything.** A SHA-256 hash-chained audit with policy id, trace id and tenant; full traces; persisted when Supabase is configured.
-11. **Fail closed.** Bad credentials, missing production auth, an invalid policy file or a planner/provider error all deny rather than degrade.
-12. **No LLM in the enforcement path.** Authorization, inspection, scoring and policy are deterministic code.
+9. **Watch the session, not just the call.** Sequence anomalies and repeated blocks raise session risk, tighten policy, quarantine the run and suspend repeat offenders.
+10. **Change policy safely.** Candidate packs are replayed, re-evaluated, shadowed or canaried before they're enforced, and relaxations must be acknowledged.
+11. **Bounded spend.** Step, token and ₹ budgets per run and per tenant per day, and per-action rate limits.
+12. **Evidence for everything.** A SHA-256 hash-chained audit with policy id, trace id and tenant; full traces; persisted when Supabase is configured.
+13. **Fail closed.** Bad credentials, missing production auth, an invalid policy file or a planner/provider error all deny rather than degrade.
+14. **No LLM in the enforcement path.** Authorization, inspection, scoring and policy are deterministic code.
 
 Details: [docs/threat-model.md](docs/threat-model.md) maps threats to the OWASP LLM and Agentic Top 10.
 
@@ -155,9 +178,11 @@ Scrape `/api/v1/observability/metrics` with Prometheus.
 
 ## CI
 
-Every push runs the backend tests, checks that the datasets regenerate identically, runs three release gates
-(v1.0 and v2.1 must pass, v2.0 must be blocked), uploads the evaluation evidence, runs the Rego parity tests,
-builds the console and builds both Docker images.
+Every push runs the backend tests, checks that the datasets regenerate identically, and runs four release gates
+(v1.0 and v2.1 must pass; v2.0 and the compromised simulator must be blocked). It then runs the adaptive
+red-team against v2.1 and v2.0 (containment must be 100%, detection at least 95%, detector false positives at
+most 2%), uploads the evaluation and fuzzing evidence, runs the Rego parity tests, builds the console and builds
+both Docker images.
 
 ## License
 

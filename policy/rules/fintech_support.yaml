@@ -24,7 +24,7 @@ policies:
   description: Instructions found inside untrusted content must not trigger privileged tools.
   when:
     injection_detected: true
-    action:
+    action: &id001
     - email.send
     - customers.export
     - refund.issue
@@ -97,6 +97,14 @@ policies:
     - permissions.change
   decision: escalate_to_human
   approver_role: platform_admin
+- id: elevated-session-privileged-approval
+  description: Once a session's cumulative risk is elevated, privileged actions need a human.
+  when:
+    session_risk_at_least: 60
+    action: *id001
+  decision: require_human_approval
+  approver_role: support_manager
+  reason: Session risk is elevated; privileged actions now require human approval.
 - id: outbound-pii-redaction
   description: Sensitive findings in outbound content are redacted instead of sent.
   when:

@@ -69,3 +69,8 @@ test_export_denied_for_customer_and_approval_for_compliance if {
 	sentinelforge.decision == "block" with input as with_fields({"action": "customers.export"})
 	sentinelforge.decision == "require_approval" with input as with_fields({"action": "customers.export", "user_role": "compliance_officer"})
 }
+
+test_elevated_session_requires_approval_for_privileged_action if {
+	sentinelforge.decision == "require_approval" with input as with_fields({"action": "email.send", "session_risk": 75})
+	sentinelforge.decision == "allow" with input as with_fields({"action": "order.read", "session_risk": 75})
+}

@@ -71,6 +71,17 @@ class AgentRegistry:
         self._agents[agent_id] = updated
         return updated
 
+    def reinstate(self, agent_id):
+        """Return a suspended identity to service. Revoked identities stay revoked."""
+        agent = self._agents[agent_id]
+        if agent.status == AgentStatus.REVOKED:
+            raise ValueError("Revoked identities cannot be reinstated")
+        updated = AgentIdentity(**{**agent.__dict__, "status": AgentStatus.ACTIVE})
+        if self.store is not None:
+            self.store.update_agent_status(agent_id, AgentStatus.ACTIVE.value)
+        self._agents[agent_id] = updated
+        return updated
+
     def revoke(self, agent_id):
         agent = self._agents[agent_id]
         updated = AgentIdentity(**{**agent.__dict__, "status": AgentStatus.REVOKED})

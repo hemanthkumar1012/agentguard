@@ -35,3 +35,4 @@ redis-data/
 
 # Evaluation evidence written by scripts/release_gate.py --json
 backend/eval-*.json
+backend/fuzz-*.jsonl

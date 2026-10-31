@@ -12,6 +12,10 @@ from app.policy import evaluate
 from app.policy_engine import PolicyContext, PolicyEngine, PolicyOutcome, _PRECEDENCE, default_engine
 from app.redaction import redact_text, redact_value
 from app.risk import assess
+from app.session_guard import SessionAssessment, SessionGuard
+from app.policy_rollout import PolicyRollout, make_record
+
+_NO_SESSION = SessionAssessment(0.0, None, 0.0, False, False, None)
 
 
 @dataclass(frozen=True)
@@ -26,6 +30,10 @@ class _Evaluation:
     factors: list[str]
     findings: list[str]
     redaction_matched: bool
+    session: SessionAssessment = _NO_SESSION
+    ctx: PolicyContext | None = None
+    baseline: DecisionResponse | None = None
+    canary: bool = False
 
 
 class ToolGateway:
@@ -43,12 +51,16 @@ class ToolGateway:
         credentials=None,
         approvals: ApprovalStore | None = None,
         engine: PolicyEngine | None = None,
+        session_guard: SessionGuard | None = None,
+        rollout: PolicyRollout | None = None,
     ) -> None:
         self.registry = registry
         self.audit = audit
         self.credentials = credentials
         self.approvals = approvals
         self.engine = engine if engine is not None else default_engine()
+        self.session_guard = session_guard
+        self.rollout = rollout
 
     # ------------------------------------------------------------------ public
     def authorize(self, request: ActionRequest, consume_approval: bool = False) -> GatewayResult:
@@ -101,7 +113,32 @@ class ToolGateway:
                 context=self._approval_context(request, response, evaluation),
             )
             response = response.model_copy(update={"approval_id": approval.approval_id})
+        if self.session_guard is not None and request.correlation_id:
+            trip = self.session_guard.record(request, response, evaluation.session)
+            state = self.session_guard.get(request.correlation_id)
+            response = response.model_copy(update={
+                "session_risk": state.risk if state else None,
+                "session_tripped": bool(trip) or bool(state and state.tripped),
+            })
+        if self.rollout is not None and evaluation.ctx is not None and evaluation.baseline is not None:
+            response = self._record_rollout(evaluation, response)
         return GatewayResult(decision=response, event_id=event.event_id)
+
+    def _record_rollout(self, evaluation: _Evaluation, response: DecisionResponse) -> DecisionResponse:
+        """Log the policy inputs, evaluate the shadow pack and count canary traffic (never enforced here)."""
+        rollout, ctx = self.rollout, evaluation.ctx
+        policy_decision = evaluation.response  # before approval binding: what the pack decided
+        record = make_record(ctx.request, ctx, evaluation.baseline, policy_decision,
+                             policy_decision.policy_pack or self.engine.version,
+                             redact_value(ctx.request.execution_payload)[0])
+        if rollout.shadow is not None:
+            shadow = self._merge(evaluation.baseline, rollout.shadow.evaluate(ctx))
+            record.shadow_decision = shadow.decision.value
+            record.shadow_policy_id = shadow.policy_id
+            response = response.model_copy(update={"shadow_decision": shadow.decision.value})
+        rollout.record(record)
+        rollout.count_canary(evaluation.canary, policy_decision.decision.value)
+        return response
 
     def dry_run(self, request: ActionRequest) -> DecisionResponse:
         """Evaluate a request without auditing, approvals or consuming rate-limit tokens."""
@@ -112,6 +149,21 @@ class ToolGateway:
 
     # ---------------------------------------------------------------- internals
     def _authorize_without_side_effects(self, request: ActionRequest, dry_run: bool = False) -> _Evaluation:
+        session = (self.session_guard.assess(request.correlation_id, request.agent_id, request.action)
+                   if self.session_guard is not None else _NO_SESSION)
+        evaluation = self._identity_and_policy(request, dry_run, session)
+        response = evaluation.response.model_copy(update={
+            "session_risk": session.risk if self.session_guard is not None and request.correlation_id else None,
+            "sequence_surprise_bits": session.surprise,
+        })
+        return _Evaluation(response, evaluation.factors, evaluation.findings, evaluation.redaction_matched, session,
+                           evaluation.ctx, evaluation.baseline, evaluation.canary)
+
+    def _identity_and_policy(self, request: ActionRequest, dry_run: bool, session: SessionAssessment) -> _Evaluation:
+        if session.tripped:
+            blocked = self._blocked(request, "Session circuit breaker is open; this session is quarantined.")
+            return _Evaluation(blocked.model_copy(update={"policy_id": "session-circuit-breaker",
+                                                          "session_tripped": True}), ["session-quarantined"], [], False)
         agent = self.registry.get(request.agent_id)
         if agent is None:
             return _Evaluation(self._blocked(request, "Unknown agent identity."), [], [], False)
@@ -143,9 +195,10 @@ class ToolGateway:
         # "development" to dodge production-only rules.
         if agent.environment and request.environment != agent.environment:
             request = request.model_copy(update={"environment": agent.environment})
-        return self._evaluate(request, dry_run=dry_run)
+        return self._evaluate(request, dry_run=dry_run, session=session)
 
-    def _evaluate(self, request: ActionRequest, dry_run: bool = False) -> _Evaluation:
+    def _evaluate(self, request: ActionRequest, dry_run: bool = False,
+                  session: SessionAssessment = _NO_SESSION) -> _Evaluation:
         findings: set[str] = set()
         if request.content:
             findings.update(inspect(request.content)["findings"])
@@ -165,6 +218,10 @@ class ToolGateway:
             factors.extend(f"prompt-injection:{category}" for category in injection.categories)
         if request.content_source != "user" and request.content:
             factors.append(f"untrusted-source:{request.content_source}")
+        if session.anomaly_weight:
+            factors.append(f"sequence-anomaly:{session.previous_action or 'start'}->{request.action}")
+        if session.elevated:
+            factors.append("session-risk-elevated")
 
         effective = request.model_copy(update={"risk_score": score})
         baseline = evaluate(effective)
@@ -174,23 +231,28 @@ class ToolGateway:
             findings=tuple(sorted(findings)),
             injection_score=injection.score,
             injection_detected=injection.detected,
+            session_risk=session.risk,
         )
-        outcome = self._engine_evaluate(ctx, dry_run)
-        response = self._merge(baseline, outcome)
-        redaction_matched = bool(outcome and any(self._is_redaction_rule(rid) for rid in outcome.matched))
+        engine, used_canary = (self.rollout.engine_for(request, self.engine) if self.rollout is not None
+                               else (self.engine, False))
+        outcome = self._engine_evaluate(ctx, dry_run, engine)
+        response = self._merge(baseline, outcome).model_copy(update={"policy_pack": engine.version})
+        redaction_matched = bool(outcome and any(self._is_redaction_rule(rid, engine) for rid in outcome.matched))
         if response.decision == Decision.ALLOW_WITH_REDACTION:
             response = self._apply_redaction(request, response)
-        return _Evaluation(response, factors, sorted(findings), redaction_matched)
+        return _Evaluation(response, factors, sorted(findings), redaction_matched, session, ctx, baseline, used_canary)
 
-    def _engine_evaluate(self, ctx: PolicyContext, dry_run: bool) -> PolicyOutcome | None:
+    @staticmethod
+    def _engine_evaluate(ctx: PolicyContext, dry_run: bool, engine: PolicyEngine) -> PolicyOutcome | None:
         if not dry_run:
-            return self.engine.evaluate(ctx)
+            return engine.evaluate(ctx)
         # Dry runs ignore rate-limit rules so that previewing never consumes tokens.
-        static = PolicyEngine([r for r in self.engine.rules if r.decision != Decision.RATE_LIMIT], self.engine.version)
+        static = PolicyEngine([r for r in engine.rules if r.decision != Decision.RATE_LIMIT], engine.version)
         return static.evaluate(ctx)
 
-    def _is_redaction_rule(self, rule_id: str) -> bool:
-        return any(rule.id == rule_id and rule.decision == Decision.ALLOW_WITH_REDACTION for rule in self.engine.rules)
+    @staticmethod
+    def _is_redaction_rule(rule_id: str, engine: PolicyEngine) -> bool:
+        return any(rule.id == rule_id and rule.decision == Decision.ALLOW_WITH_REDACTION for rule in engine.rules)
 
     @staticmethod
     def _merge(baseline: DecisionResponse, outcome: PolicyOutcome | None) -> DecisionResponse:

@@ -21,6 +21,8 @@ from app.api.evaluations import router as evaluations_router
 from app.api.observability import router as observability_router
 from app.api.orchestrations import router as orchestrations_router
 from app.api.policies import router as policies_router
+from app.api.redteam import router as redteam_router
+from app.api.sessions import router as sessions_router
 from app.config import settings
 from app.rate_limit import RateLimiter
 from app.operator_auth import authenticate, can_access
@@ -138,3 +140,5 @@ app.include_router(agent_runs_router, prefix="/api/v1")
 app.include_router(observability_router, prefix="/api/v1")
 app.include_router(evaluations_router, prefix="/api/v1")
 app.include_router(orchestrations_router, prefix="/api/v1")
+app.include_router(redteam_router, prefix="/api/v1")
+app.include_router(sessions_router, prefix="/api/v1")

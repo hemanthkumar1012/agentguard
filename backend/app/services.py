@@ -9,6 +9,8 @@ from app.credentials import CredentialBroker
 from app.gateway import ToolGateway
 from app.identity import AgentRegistry
 from app.policy_engine import PolicyEngine, default_engine
+from app.policy_rollout import PolicyRollout
+from app.session_guard import SessionGuard
 from app.supabase_store import SupabaseStore
 
 
@@ -35,7 +37,10 @@ audit_ledger = AuditLedger(store=persistence)
 credential_broker = CredentialBroker(store=persistence)
 approval_store = ApprovalStore(store=persistence)
 policy_engine = _load_policy_engine()
-tool_gateway = ToolGateway(agent_registry, audit_ledger, credential_broker, approval_store, engine=policy_engine)
+session_guard = SessionGuard(agent_registry, audit_ledger)
+policy_rollout = PolicyRollout(audit=audit_ledger)
+tool_gateway = ToolGateway(agent_registry, audit_ledger, credential_broker, approval_store, engine=policy_engine,
+                           session_guard=session_guard, rollout=policy_rollout)
 delegation_authorizer = AgentAuthorization(agent_registry, store=persistence)
 budget_manager = BudgetManager()
 
@@ -56,7 +61,29 @@ def _build_runtime():
     runner = AgentRunner(agent_registry, tool_gateway, credential_broker, traces, budget_manager, store, versions)
     orchestrator = Orchestrator(agent_registry, delegation_authorizer, runner.tools, traces)
     evaluations = EvaluationEngine(runner, versions)
+    train_session_models(evaluations, versions)
     return store, traces, versions, runner, orchestrator, evaluations
 
 
+def train_session_models(evaluations, versions) -> dict[str, int]:
+    """Learn each scripted version's normal tool-call sequences from benign cases it passes."""
+    trained = {}
+    for version in versions.list():
+        if version.planner != "scripted":
+            continue
+        sequences = evaluations.collect_sequences(version.version_id)
+        session_guard.train(version.version_id, sequences)
+        trained[version.version_id] = len(sequences)
+    return trained
+
+
 fintech_store, trace_store, agent_versions, agent_runner, orchestrator, evaluation_engine = _build_runtime()
+
+
+def _build_redteam():
+    from app.redteam_fuzzer import AdaptiveRedTeam
+
+    return AdaptiveRedTeam(evaluation_engine)
+
+
+adaptive_redteam = _build_redteam()

@@ -45,6 +45,26 @@ console.
 * **Policy Studio** → simulate `refund.issue` for ₹2,50,000 → `block` by `refund-hard-cap`, with
   `refund-above-threshold` also matched. Nothing is audited or consumed.
 
+## 6. Persistent attacker → circuit breaker → kill switch · 30s
+
+1. **Session Guard** → *Simulate persistent attacker* (runs `support-agent-compromised`).
+2. The agent retries export and email after each block. Risk climbs (+20 block, +10 injection, +13 for the
+   7.2-bit `policy.search → email.send` anomaly) and the run is **quarantined** at 103.
+3. Press it twice more: the identity is **suspended**, and the next run stops before any tool call. Click
+   *Reinstate*.
+
+## 7. Adaptive fuzzer · 30s
+
+**Red-Team Lab → Adaptive fuzzer** → v2.0, 600 variants → about 98–99% detected, about 15% resisted (v2.0 is
+hijackable), **100% contained**. The weakest-operator bars and the robustness-by-depth curve show where the
+detector struggles. *Hijacks JSONL* downloads new regression cases.
+
+## 8. Unsafe policy change caught before shipping · 30s
+
+**Policy Studio → Change management** → preset *Raise refund approval to ₹20,000* → *Analyze impact* →
+**UNSAFE**: 9 decisions relax, and v2.1 goes **approved → blocked** on re-run. Try *Lower to ₹2,000* →
+*Start canary* for `zenbank` and *Start shadow*, then *Roll back*.
+
 ## API equivalents
 
 ```bash

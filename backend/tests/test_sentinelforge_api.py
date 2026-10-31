@@ -166,12 +166,15 @@ def test_policy_simulation_and_hot_reload():
 
     original = policy_engine.describe()
     try:
-        replaced = client.post("/api/v1/policies", json={"version": "test-pack", "policies": [
-            {"id": "deny-all-email", "when": {"action": "email.send"}, "decision": "deny"}]})
+        candidate = {"version": "test-pack", "policies": [
+            {"id": "deny-all-email", "when": {"action": "email.send"}, "decision": "deny"}]}
+        # Dropping every other rule loosens recorded decisions, so it needs acknowledgement.
+        assert client.post("/api/v1/policies", json=candidate).status_code == 409
+        replaced = client.post("/api/v1/policies", json={**candidate, "acknowledge_relaxations": True})
         assert replaced.status_code == 200 and replaced.json()["version"] == "test-pack"
         assert client.get("/api/v1/policies/history").json()["history"][0]["version"] == "test-pack"
     finally:
-        client.post("/api/v1/policies", json=original)
+        client.post("/api/v1/policies", json={**original, "acknowledge_relaxations": True})
     assert policy_engine.version == original["version"]
 
 

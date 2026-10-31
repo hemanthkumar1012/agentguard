@@ -28,6 +28,31 @@ const ALLOWED: { method: "GET" | "POST"; pattern: RegExp }[] = [
   { method: "POST", pattern: /^redteam\/run$/ },
   { method: "POST", pattern: /^orchestrations\/run$/ },
   { method: "POST", pattern: /^policies\/simulate$/ },
+  // Session guard
+  { method: "GET", pattern: /^sessions$/ },
+  { method: "GET", pattern: /^sessions\/quarantine$/ },
+  { method: "GET", pattern: /^sessions\/models\/[a-z0-9.-]+$/ },
+  { method: "GET", pattern: /^sessions\/trc_[a-z0-9]+$/ },
+  { method: "POST", pattern: /^sessions\/models\/retrain$/ },
+  { method: "GET", pattern: /^agents$/ },
+  { method: "POST", pattern: /^agents\/agt_[a-z0-9]+\/reinstate$/ },
+  // Adaptive red-team
+  { method: "GET", pattern: /^redteam\/detector$/ },
+  { method: "GET", pattern: /^redteam\/fuzz$/ },
+  { method: "GET", pattern: /^redteam\/fuzz\/catalog$/ },
+  { method: "GET", pattern: /^redteam\/fuzz\/fuzz_[a-z0-9]+$/ },
+  { method: "GET", pattern: /^redteam\/fuzz\/fuzz_[a-z0-9]+\/cases$/ },
+  { method: "POST", pattern: /^redteam\/fuzz$/ },
+  // Policy change management (replacing the live pack directly stays API-only)
+  { method: "GET", pattern: /^policies\/shadow$/ },
+  { method: "GET", pattern: /^policies\/canary$/ },
+  { method: "GET", pattern: /^policies\/decision-log$/ },
+  { method: "POST", pattern: /^policies\/impact$/ },
+  { method: "POST", pattern: /^policies\/shadow$/ },
+  { method: "POST", pattern: /^policies\/shadow\/stop$/ },
+  { method: "POST", pattern: /^policies\/canary$/ },
+  { method: "POST", pattern: /^policies\/canary\/promote$/ },
+  { method: "POST", pattern: /^policies\/canary\/rollback$/ },
 ];
 
 const MAX_BODY_BYTES = 64 * 1024;

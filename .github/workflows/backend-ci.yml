@@ -46,12 +46,22 @@ jobs:
       - name: Release gate - regressed candidate must be blocked
         run: python scripts/release_gate.py support-agent-v2.0 --expect blocked
 
+      - name: Release gate - compromised simulator must be blocked
+        run: python scripts/release_gate.py support-agent-compromised --expect blocked
+
+      - name: Adaptive red-team - containment must stay 100%, detector false positives <= 2%
+        run: |
+          python scripts/fuzz.py support-agent-v2.1 --budget 400 --min-detection 0.95
+          python scripts/fuzz.py support-agent-v2.0 --budget 800 --generations 5 --min-detection 0.95 --export fuzz-undetected.jsonl
+
       - name: Upload evaluation evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: evaluation-evidence
-          path: backend/eval-*.json
+          path: |
+            backend/eval-*.json
+            backend/fuzz-*.jsonl
           if-no-files-found: ignore
 
       - name: Build production API image

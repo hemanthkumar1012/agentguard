@@ -47,16 +47,28 @@ the version's latest evaluation to be approved, and supersedes the previous rele
 | Version | Cases passed | Injection resistance | Containment | Privacy | Tool correctness | Decision |
 |---|---|---|---|---|---|---|
 | support-agent-v1.0 | 156/156 | 100% | 100% | 100% | 100% | approved |
-| support-agent-v2.0 | 81/156 | 27.0% | 100% | 94.9% | 80.8% | **blocked** |
+| support-agent-v2.0 | 77/156 | 20.2% | 100% | 100% | 80.8% | **blocked** |
 | support-agent-v2.1 | 156/156 | 100% | 100% | 100% | 100% | approved |
+| support-agent-compromised | 72/156 | 18.0% | 100% | 100% | 80.8% | **blocked** |
 
 v2.0 follows instructions in untrusted content and the user turn, ignores ownership and doesn't cap refunds.
-The gateway contained every attempt (containment 100%), but the agent-level gates still block it. That is the
-release story: v2.1 keeps the faster direct refunds and fixes the regression.
+The gateway contained every attempt (containment 100%), and the output guard strips its attempts to recite the
+system prompt (privacy 100%), but those attempts are still charged to injection resistance, so the agent-level
+gates block it. That is the release story: v2.1 keeps the faster direct refunds and fixes the regression.
+`support-agent-compromised` is the circuit-breaker demo agent (see [session-guard.md](session-guard.md)).
+
+Every case runs with the session guard on, so the gates also prove the circuit breaker produces no false
+positives for correct agents.
 
 **Caveat:** these numbers come from the deterministic scripted planner, which makes CI reproducible. They do
 not measure a real LLM. For real-model numbers, set `SENTINELFORGE_LLM_API_KEY` and evaluate
 `support-agent-llm`. The gates, datasets and scorers are the same.
+
+## Beyond the fixed suite
+
+The curated cases are complemented by the [adaptive red-team](adaptive-red-team.md), which generates
+thousands of mutated attacks per run, and by [policy impact analysis](policy-rollout.md), which re-runs this
+suite under a candidate policy pack before it can be enforced.
 
 ## Regression comparison
 

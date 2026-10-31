@@ -33,6 +33,10 @@ flowchart TB
     Gateway -->|REQUIRE_APPROVAL / ESCALATE| Inbox[Approval inbox]
     Inbox -->|resume: same request + approval id| Gateway
 
+    Gateway <--> Session[Session guard<br/>Markov anomaly · cumulative risk<br/>circuit breaker · kill switch]
+    Gateway --> Rollout[Policy rollout<br/>decision log · shadow · canary]
+    Rollout --> Impact[Impact analysis<br/>replay + eval re-run]
+    Fuzz[Adaptive red-team<br/>13 mutation operators<br/>evolutionary search] --> SB
     Gateway --> Audit[(Hash-chained audit ledger)]
     Runtime --> Traces[(Trace store<br/>spans · tokens · cost · latency)]
     Traces --> Metrics[Prometheus /observability/metrics<br/>OpenTelemetry spans]
@@ -84,6 +88,10 @@ flowchart TB
 | `app/tracing.py` | Traces and spans; optional OpenTelemetry mirroring; stats for dashboards. |
 | `app/evaluation.py` | Dataset loader, per-case sandbox, scorers, release gates, run comparison, promotion. |
 | `app/prometheus.py` | Dependency-free Prometheus exposition. |
+| `app/session_guard.py` | Per-version Markov sequence model, cumulative session risk, circuit breaker, identity kill switch. |
+| `app/policy_rollout.py` | Decision log, replay, shadow evaluation, tenant/percentage canary with auto-rollback. |
+| `app/policy_impact.py` | First-order replay and second-order eval re-run for a candidate pack, verdicts. |
+| `app/redteam_fuzzer.py` | Mutation operators, evolutionary search, false-positive corpus, case export. |
 
 ## Design decisions
 

@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { Command } from "cmdk";
-import { LayoutDashboard, Users, Activity, ShieldAlert, ShieldCheck, Key, Network, Target, ListTree, MessageSquare, Workflow, FlaskConical } from "lucide-react";
+import { LayoutDashboard, Users, Activity, ShieldAlert, ShieldCheck, Key, Network, Target, ListTree, MessageSquare, Workflow, FlaskConical, Gauge } from "lucide-react";
 
 export function CommandMenu({ setView }: { setView: (view: any) => void }) {
   const [open, setOpen] = React.useState(false);
@@ -111,6 +111,9 @@ export function CommandMenu({ setView }: { setView: (view: any) => void }) {
                 </Command.Item>
                 <Command.Item onSelect={() => { setView("approvals"); setOpen(false); }}>
                   <ShieldAlert size={16} /> Approval Inbox
+                </Command.Item>
+                <Command.Item onSelect={() => { setView("sessions"); setOpen(false); }}>
+                  <Gauge size={16} /> Session Guard
                 </Command.Item>
                 <Command.Item onSelect={() => { setView("playground"); setOpen(false); }}>
                   <MessageSquare size={16} /> Agent Playground

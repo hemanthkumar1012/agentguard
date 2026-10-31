@@ -10,7 +10,8 @@ package sentinelforge
 #     "user_role": "customer", "tenant_id": "acmepay", "resource_tenant_id": "acmepay",
 #     "user_id": "cus_128", "resource_owner_id": "cus_128",
 #     "args": {"order_id": "ORD-1077", "amount": 18000},
-#     "has_findings": false, "injection_detected": false, "target_external": false
+#     "has_findings": false, "injection_detected": false, "target_external": false,
+#     "session_risk": 0
 #   }
 
 import rego.v1
@@ -91,6 +92,11 @@ matches contains {"id": "external-email-approval", "decision": "require_approval
 matches contains {"id": "production-write-escalation", "decision": "escalate_to_human"} if {
 	input.environment == "production"
 	input.action in {"db.write", "permissions.change"}
+}
+
+matches contains {"id": "elevated-session-privileged-approval", "decision": "require_approval"} if {
+	object.get(input, "session_risk", 0) >= 60
+	input.action in privileged_actions
 }
 
 matches contains {"id": "outbound-pii-redaction", "decision": "allow_with_redaction"} if {

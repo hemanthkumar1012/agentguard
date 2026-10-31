@@ -24,8 +24,8 @@ export function RiskChart({ points = [] }: { points?: RiskPoint[] }) {
           <YAxis domain={[0, 100]} axisLine={false} tickLine={false} tick={{ fill: "#52525b", fontSize: 10 }} />
           <Tooltip
             contentStyle={{ backgroundColor: "#111", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, fontSize: 12 }}
-            formatter={(value, _name, item) => [String(value), `max risk · ${(item as { payload?: { version?: string } })?.payload?.version ?? ""}`]}
-            labelFormatter={(label) => `Run ${String(label)}`}
+            formatter={(value: unknown, _name: unknown, item: unknown) => [String(value), `max risk · ${(item as { payload?: { version?: string } })?.payload?.version ?? ""}`]}
+            labelFormatter={(label: unknown) => `Run ${String(label)}`}
           />
           <Area type="monotone" dataKey="risk" stroke="#ef4444" strokeWidth={2} fillOpacity={1} fill="url(#colorRisk)" />
         </AreaChart>

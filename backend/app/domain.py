@@ -75,3 +75,8 @@ class DecisionResponse(BaseModel):
     retry_after_seconds: int | None = None
     redacted_content: str | None = None
     redacted_payload: dict | None = None
+    session_risk: float | None = None
+    sequence_surprise_bits: float | None = None
+    session_tripped: bool = False
+    shadow_decision: str | None = None
+    policy_pack: str | None = None

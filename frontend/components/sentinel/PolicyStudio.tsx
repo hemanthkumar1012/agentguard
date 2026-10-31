@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { FlaskRound } from "lucide-react";
 import { AgentVersion, sfGet, sfPost } from "../../lib/sf";
+import { PolicyRollout } from "./PolicyRollout";
 import { DecisionPill, ErrorNote, KV, PageHeader, PanelHead } from "./ui";
 
 type Rule = { id: string; description: string; when: Record<string, unknown>; decision: string; approver_role: string | null; rate_limit: { limit: number; window_seconds: number; scope: string } | null };
@@ -87,6 +88,7 @@ export function PolicyStudio() {
           <p className="hint">Packs are YAML in <code>policy/rules/</code>, validated on load (unknown conditions are rejected), and mirrored in Rego for OPA.</p>
         </section>
       </div>
+      <PolicyRollout />
       <section className="panel">
         <PanelHead eyebrow="LIVE RULES" title="Active policy pack" />
         <div className="data-list compact">

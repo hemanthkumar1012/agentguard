@@ -45,7 +45,7 @@ _DECISION_ALIASES = {
 
 _LIST_KEYS = {"tool", "action", "environment", "user_role", "data_classification", "content_source", "tenant_id"}
 _BOOL_KEYS = {"has_findings", "injection_detected", "target_external", "owner_mismatch", "tenant_mismatch"}
-_NUMBER_KEYS = {"amount_greater_than", "amount_at_most", "risk_at_least", "risk_below"}
+_NUMBER_KEYS = {"amount_greater_than", "amount_at_most", "risk_at_least", "risk_below", "session_risk_at_least"}
 _ALLOWED_KEYS = _LIST_KEYS | {f"not_{key}" for key in _LIST_KEYS} | _BOOL_KEYS | _NUMBER_KEYS | {"arg_equals"}
 
 
@@ -106,6 +106,7 @@ class PolicyContext:
     findings: tuple[str, ...] = ()
     injection_score: int = 0
     injection_detected: bool = False
+    session_risk: float = 0.0
     internal_domains: tuple[str, ...] = ("acmepay.example", "internal")
 
     @property
@@ -182,6 +183,9 @@ def _matches(rule: PolicyRule, ctx: PolicyContext) -> bool:
                 return False
         elif key == "risk_below":
             if not ctx.risk_score < expected:
+                return False
+        elif key == "session_risk_at_least":
+            if not ctx.session_risk >= expected:
                 return False
         elif key == "has_findings":
             if bool(ctx.findings) != expected:
@@ -386,6 +390,14 @@ def default_rules() -> list[dict]:
             "when": {"environment": "production", "action": ["db.write", "permissions.change"]},
             "decision": "escalate_to_human",
             "approver_role": "platform_admin",
+        },
+        {
+            "id": "elevated-session-privileged-approval",
+            "description": "Once a session's cumulative risk is elevated, privileged actions need a human.",
+            "when": {"session_risk_at_least": 60, "action": PRIVILEGED_ACTIONS},
+            "decision": "require_human_approval",
+            "approver_role": "support_manager",
+            "reason": "Session risk is elevated; privileged actions now require human approval.",
         },
         {
             "id": "outbound-pii-redaction",

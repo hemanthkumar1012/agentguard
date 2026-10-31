@@ -135,13 +135,32 @@ export async function sfGet<T>(path: string, params?: Record<string, string | un
   return res.json();
 }
 
+export async function sfGetText(path: string, params?: Record<string, string>): Promise<string> {
+  const query = params ? "?" + new URLSearchParams(params).toString() : "";
+  const res = await fetch(`/api/sf/${path}${query}`, { cache: "no-store" });
+  if (!res.ok) throw new Error(`Request failed (${res.status})`);
+  return res.text();
+}
+
+export function downloadText(filename: string, text: string, type = "application/x-ndjson") {
+  const url = URL.createObjectURL(new Blob([text], { type }));
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 export async function sfPost<T>(path: string, body: unknown = {}): Promise<T> {
   const res = await fetch(`/api/sf/${path}`, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(body),
   });
-  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).detail ?? `Request failed (${res.status})`);
+  if (!res.ok) {
+    const detail = (await res.json().catch(() => ({}))).detail;
+    throw new Error(typeof detail === "string" ? detail : detail?.message ?? `Request failed (${res.status})`);
+  }
   return res.json();
 }
 
