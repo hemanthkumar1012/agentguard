@@ -2,18 +2,14 @@
 
 import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
-// Simulated risk data over time to demonstrate the visual capability
-const data = [
-  { time: "00:00", risk: 20 },
-  { time: "04:00", risk: 22 },
-  { time: "08:00", risk: 45 },
-  { time: "12:00", risk: 30 },
-  { time: "16:00", risk: 75 }, // Security Event Spike
-  { time: "20:00", risk: 25 },
-  { time: "24:00", risk: 20 },
-];
+export type RiskPoint = { trace_id: string; started_at: string; max_risk: number; agent_version: string | null };
 
-export function RiskChart() {
+// Max gateway risk per agent run (most recent 50 runs) from /observability/stats.
+export function RiskChart({ points = [] }: { points?: RiskPoint[] }) {
+  const data = points.map((p, i) => ({ run: i + 1, risk: Math.round(p.max_risk), version: p.agent_version }));
+  if (data.length === 0) {
+    return <div className="empty" style={{ height: 120, marginTop: 24 }}>No agent runs yet.</div>;
+  }
   return (
     <div style={{ width: "100%", height: 120, marginTop: 24, marginBottom: 16 }}>
       <ResponsiveContainer width="100%" height="100%">
@@ -24,31 +20,14 @@ export function RiskChart() {
               <stop offset="95%" stopColor="#ef4444" stopOpacity={0} />
             </linearGradient>
           </defs>
-          <XAxis 
-            dataKey="time" 
-            axisLine={false} 
-            tickLine={false} 
-            tick={{ fill: "#52525b", fontSize: 11 }} 
-            dy={10} 
+          <XAxis dataKey="run" axisLine={false} tickLine={false} tick={{ fill: "#52525b", fontSize: 10 }} />
+          <YAxis domain={[0, 100]} axisLine={false} tickLine={false} tick={{ fill: "#52525b", fontSize: 10 }} />
+          <Tooltip
+            contentStyle={{ backgroundColor: "#111", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, fontSize: 12 }}
+            formatter={(value, _name, item) => [String(value), `max risk · ${(item as { payload?: { version?: string } })?.payload?.version ?? ""}`]}
+            labelFormatter={(label) => `Run ${String(label)}`}
           />
-          <YAxis 
-            axisLine={false} 
-            tickLine={false} 
-            tick={{ fill: "#52525b", fontSize: 11 }} 
-          />
-          <Tooltip 
-            contentStyle={{ backgroundColor: "#0a0a0a", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, color: "#fff", fontSize: 12 }}
-            itemStyle={{ color: "#ef4444", fontWeight: 600 }}
-            cursor={{ stroke: 'rgba(255,255,255,0.1)', strokeWidth: 1, strokeDasharray: '4 4' }}
-          />
-          <Area 
-            type="monotone" 
-            dataKey="risk" 
-            stroke="#ef4444" 
-            strokeWidth={2}
-            fillOpacity={1} 
-            fill="url(#colorRisk)" 
-          />
+          <Area type="monotone" dataKey="risk" stroke="#ef4444" strokeWidth={2} fillOpacity={1} fill="url(#colorRisk)" />
         </AreaChart>
       </ResponsiveContainer>
     </div>

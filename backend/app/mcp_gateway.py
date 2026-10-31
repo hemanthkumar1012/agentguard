@@ -46,11 +46,14 @@ class MCPGateway:
             ),
             consume_approval=True,
         )
-        if decision.decision.decision != Decision.ALLOW:
+        if not decision.decision.decision.is_executable:
             return {"executed": False, "decision": decision.decision.model_dump(mode="json"), "event_id": decision.event_id}
 
+        arguments = request.arguments
+        if decision.decision.decision == Decision.ALLOW_WITH_REDACTION and decision.decision.redacted_payload is not None:
+            arguments = decision.decision.redacted_payload
         try:
-            result = self.runtime.execute(request.agent_id, request.tool, request.action, request.arguments)
+            result = self.runtime.execute(request.agent_id, request.tool, request.action, arguments)
         except KeyError:
             self._record_execution_error(request, decision.decision.risk_score, "Requested tool handler is not registered.")
             raise

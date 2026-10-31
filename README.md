@@ -1,83 +1,78 @@
-# AgentGuard
+# SentinelForge
 
-**Runtime Security & Control Plane for AI Agents**
+**Policy enforcement, evaluation and observability for production AI agents.**
 
-AgentGuard is a deterministic security enforcement layer for agentic systems. It answers a runtime security question that static RBAC cannot answer reliably:
+SentinelForge lets a company run AI agents that touch money and customer data. Every tool call is
+decided before it executes (**allow, block, redact, rate-limit, require approval or escalate**), recorded as
+tamper-evident evidence and traced end to end. Every agent version must pass release gates before it ships.
 
-> Should this particular agent be allowed to perform this particular action, with this particular data, against this particular target, right now?
+The reference deployment is **SentinelForge for fintech support operations**: an AI support agent for
+"AcmePay" that can answer account questions and prepare refunds, but can never move money or read another
+customer's data without verifiable authorization and risk-based human approval.
 
-It sits between agents and the tools/APIs they can execute, combining identity, least privilege, contextual risk, data inspection, scoped credentials, MCP controls, approvals, anomaly detection, delegation, and tamper-evident audit events.
+> Built on AgentGuard's deterministic enforcement core (identity, least privilege, scoped credentials, data
+> inspection, risk, approvals, hash-chained audit, MCP boundary, OPA parity), extended with a declarative policy
+> engine, an agent runtime, a multi-agent orchestrator, an evaluation engine and a trace explorer.
 
-## What is implemented
+```text
+User request ─► Agent plans a tool call ─► Policy gateway ─► allow / redact / rate-limit / approve / escalate / block
+                    ▲                          │                       │
+     untrusted text is taint-tracked           │                       └─► Tool sandbox (only if permitted)
+                                               └─► hash-chained audit · trace spans · tokens · ₹ cost · latency
+```
 
-- **Agent identity:** register, inspect, suspend, revoke, and list agents.
-- **Runtime authorization:** all decision requests pass through the same gateway enforcement path used by tool execution.
-- **Risk engine:** sensitive-data, high-impact-action, external-target, and transport-risk factors.
-- **Data inspection:** detects common email, API-key, card-number, and secret markers before execution.
-- **Credential broker:** opaque, short-lived, agent/tool/scope-bound credentials; issuance is denied outside the agent's permissions.
-- **Tool gateway:** one enforcement point before tool execution.
-- **MCP boundary:** tool calls pass through AgentGuard authorization before the runtime executes them.
-- **Human approvals:** pending/approved/denied/expired approval lifecycle.
-- **Agent-to-agent delegation:** explicit source/target/action scopes.
-- **Behavior anomaly baseline:** deterministic, explainable rate-based anomaly scoring; no model or external AI service is required at runtime.
-- **Attack simulator:** deterministic synthetic attack scenarios for security demos and regression testing.
-- **Control-plane dashboard API:** agent posture, decision counts, risk statistics, and recent events.
-- **Forensic audit events:** policy version, correlation ID, tool, credential, risk factors, data findings, execution failures, and a SHA-256 hash chain restored from durable storage when configured.
-- **Production hardening:** CORS allowlist, constant-time API-key comparison, request IDs, security headers, no-store responses, fail-closed production authentication, and configurable API rate limiting.
-- **Durable persistence contract:** PostgreSQL/Supabase migration with RLS, indexes, and audit integrity columns.
-- **OPA policy:** Rego policy and regression tests kept in parity with the deterministic Python policy engine.
-- **CI:** backend tests and frontend production builds run on every push/PR to `main`.
+## What's inside
+
+| Capability | What it does |
+|---|---|
+| **Policy-driven agent firewall** | Declarative YAML rules on agent, user, role, tenant, tool, action, arguments, amount, data sensitivity, resource ownership, injection signals, risk and environment. Six decisions; the strictest wins. Hot reload, dry-run simulation and a Rego mirror for OPA. |
+| **Prompt-injection defense** | Taint tracking carries retrieved documents, tool output, DB fields, email and agent hand-offs into every later tool call. Normalised (unicode, zero-width, leetspeak) injection scoring. A deny rule for privileged actions. Output guard. |
+| **Human approval workflow** | Approvals routed by role (`finance_manager`, `support_manager`, `compliance_officer`…) with the full proposed call and evidence. Approve, reject or request info. Bound to the exact request fingerprint, TTL, single use, no self-approval. Runs pause and resume. |
+| **Agent runtime** | Versioned agents (model, prompt version, permissions, behaviour). A deterministic planner for CI, plus an OpenAI-compatible function-calling planner (OpenAI, Gemini, vLLM). Per-run scoped credentials. Token and ₹ budgets. |
+| **Multi-agent orchestration** | Triage → policy / order / billing / escalation → responder. Each sub-agent has its own identity and minimal tools, and is reached through explicit delegation scopes. Billing can draft refunds but never issue them. |
+| **Evaluation & release gates** | 156 original cases (support, prompt injection, PII leakage, tool misuse) run in per-case sandboxes. Scorecards for task success, tool selection, argument correctness, grounding, injection resistance, containment, privacy, policy compliance, reliability, cost and latency. Regression comparison and gated promotion. |
+| **Trace explorer & observability** | Per-run timelines (LLM, retrieval, policy, tool, approval, guard, hand-off spans) linked to audit events and approvals. Search by tenant, version, user, status, tool or policy. Cost and latency dashboards, risk trends, Prometheus metrics, optional OpenTelemetry export. |
+| **Red-team lab** | Attack-by-attack report: attack type, input source, agent response, attempted calls, policy decision, exposure, pass/fail, remediation. |
+
+## Results
+
+| Agent version | Change | Cases passed | Injection resistance | Containment | Release |
+|---|---|---|---|---|---|
+| `support-agent-v1.0` | Baseline: drafts refunds for finance | 156/156 | 100% | 100% | approved |
+| `support-agent-v2.0` | Direct refunds, but obeys instructions in content | 81/156 | 27.0% | 100% | **blocked** |
+| `support-agent-v2.1` | Direct refunds, regression fixed | 156/156 | 100% | 100% | approved |
+
+The gateway contained every unsafe action v2.0 attempted, and the release gates still blocked it, because
+an agent that relies on the backstop is a regression. Scores come from the deterministic planner used in CI;
+evaluate `support-agent-llm` with an API key for real-model numbers (see
+[evaluation methodology](docs/evaluation-methodology.md)).
+
+The first v2.0 evaluation also found a real policy gap: a ₹5,000 refund with **no order id** was allowed.
+It's now covered by the `refund-requires-order` rule and a dataset case.
 
 ## Architecture
 
-![AgentGuard architecture flow](docs/agentguard-architecture.svg)
+See [docs/architecture.md](docs/architecture.md) for the diagram and the request lifecycle.
 
-AgentGuard follows one deterministic enforcement path: **identify → inspect → score risk → evaluate policy → approve/block → issue scoped credentials → execute → audit → persist → observe**.
-
-The runtime authorization path has no AI/ML/LLM dependency. Security decisions, data inspection, risk scoring, anomaly scoring, policy evaluation, credential scoping, and audit integrity are implemented as deterministic application logic.
-
-
-## API surface
-
-All APIs are under `/api/v1`.
-
-| Area | Endpoint | Purpose |
-|---|---|---|
-| Health | `GET /health` | Liveness |
-| Health | `GET /health/ready` | Dependency and audit-integrity readiness |
-| Agents | `POST /agents` | Register identity |
-| Agents | `GET /agents` | List identities |
-| Agents | `POST /agents/{id}/suspend` | Suspend identity |
-| Agents | `POST /agents/{id}/revoke` | Revoke identity |
-| Decisions | `POST /decisions` | Enforced runtime authorization decision |
-| Gateway | `POST /gateway/authorize` | Enforce runtime authorization |
-| Gateway | `GET /gateway/audit` | Audit stream |
-| Tools | `POST /tools/execute` | Authorized tool execution |
-| MCP | `POST /mcp/call` | Authorized MCP tool call |
-| Security | `POST /security/risk` | Contextual risk assessment |
-| Security | `POST /security/inspect` | Data/secret inspection |
-| Security | `POST /security/credentials` | Issue scoped credential |
-| Security | `POST /security/credentials/{id}/revoke` | Revoke credential |
-| Approvals | `/approvals/*` | Human approval workflow |
-| Delegation | `/delegations/*` | Agent-to-agent authorization |
-| Anomaly | `/anomaly/*` | Behavior baseline scoring |
-| Simulator | `/simulator/*` | Synthetic attack scenarios |
-| Control plane | `GET /control-plane/snapshot` | Dashboard metrics |
-
-Interactive API documentation is available at `/docs` when the API is running.
-
-## Security model
-
-1. **Identify first.** Unknown, suspended, or revoked agents cannot execute tools.
-2. **Least privilege.** The requested action must exist in the agent permission set.
-3. **Credential isolation.** Tool execution requires a credential bound to the same agent, tool, and action scope.
-4. **Inspect content.** Sensitive content increases runtime risk and is retained as findings, not as raw secrets in the audit contract.
-5. **Evaluate context.** Risk factors change the effective score before the policy decision.
-6. **Fail closed.** Invalid identity, permission, credential, and missing production API authentication result in denial rather than an unsafe fallback.
-7. **Audit everything.** Decisions and execution failures carry correlation, policy, tool, credential, risk, and data-inspection metadata.
-8. **Tamper evidence.** Audit events are SHA-256 chained and the persisted chain is restored when the durable store is configured.
-9. **No AI dependency in the enforcement path.** Runtime authorization, inspection, risk scoring, anomaly detection, and policy evaluation are deterministic application logic.
-10. **Defense in depth.** PostgreSQL/Supabase RLS protects the durable data boundary when persistence is configured.
+```text
+sentinelforge/ (this repository)
+├── backend/app/
+│   ├── gateway.py            # single enforcement point (baseline policy + rule engine, redaction, approvals, audit)
+│   ├── policy_engine.py      # declarative rules, precedence, validation, rate limits
+│   ├── injection.py          # injection scoring          redaction.py   # PII / secret redaction
+│   ├── agent_runtime.py      # versions, planners, taint tracking, guarded tools, pause/resume, output guard
+│   ├── orchestrator.py       # least-privilege multi-agent workflow
+│   ├── evaluation.py         # datasets, sandboxes, scorers, release gates, comparisons
+│   ├── tracing.py  prometheus.py  budgets.py  fintech.py
+│   └── api/                  # runs, agent-versions, policies, traces, evaluations, redteam, orchestrations, …
+├── backend/scripts/release_gate.py   # CI release gate
+├── datasets/                 # 156 JSONL cases + deterministic generator
+├── policy/rules/fintech_support.yaml # the live policy pack
+├── policy/opa/               # Rego mirror + parity tests
+├── supabase/migrations/      # durable schema (0004 adds traces, versions, evals, policy packs)
+├── frontend/                 # Next.js console (server-side proxy; key never reaches the browser)
+└── docs/                     # architecture, threat model, policy language, evaluation methodology, demo
+```
 
 ## Run locally
 
@@ -86,87 +81,83 @@ Interactive API documentation is available at `/docs` when the API is running.
 ```bash
 cd backend
 python -m pip install -e ".[test]"
-uvicorn app.main:app --reload --port 8000
+uvicorn app.main:app --reload --port 8000      # API docs at http://localhost:8000/docs
+python -m pytest -q                            # 116 tests
+python scripts/release_gate.py support-agent-v1.0
+python scripts/release_gate.py support-agent-v2.0 --expect blocked
 ```
 
-### Frontend
+### Console
 
 ```bash
 cd frontend
 npm install
-npm run dev
+AGENTGUARD_BACKEND_URL=http://localhost:8000 AGENTGUARD_API_KEY=<operator key or empty in dev> npm run dev
 ```
 
-Set `NEXT_PUBLIC_API_URL` to the API base URL if it is not `http://localhost:8000/api/v1`.
-
-### API container with Supabase configuration
+### Everything with Docker
 
 ```bash
-docker compose up --build
+docker compose up --build        # API on :8000, console on :3000
 ```
 
-The Compose stack starts the FastAPI service and passes `SUPABASE_URL` and
-`SUPABASE_SERVICE_KEY` through from the shell environment. It does not start a
-generic PostgreSQL container because the application persistence adapter uses the
-Supabase HTTP API, not a raw PostgreSQL connection. Apply the migrations explicitly
-to the configured Supabase project before setting `AGENTGUARD_ENV=production`.
+### Policy tests
+
+```bash
+opa test policy/opa -v
+```
+
+Then follow the [3-minute demo](docs/demo-scenarios.md).
+
+## API surface (all under `/api/v1`)
+
+| Area | Endpoints |
+|---|---|
+| Agent runtime | `POST /runs` · `GET /runs/{id}` · `POST /runs/{id}/resume` · `GET/POST /agent-versions` · `POST /agent-versions/{id}/promote` |
+| Policies | `GET /policies` · `POST /policies` (admin, atomic replace) · `POST /policies/validate` · `POST /policies/simulate` · `GET /policies/history` |
+| Approvals | `GET /approvals?status=&approver_role=` · `GET /approvals/{id}` · `POST /approvals/{id}/decision` (approve, reject, `request_info`, `decided_by_role`) |
+| Observability | `GET /traces` (filters) · `GET /traces/{id}` · `GET /observability/stats` · `GET /observability/metrics` (Prometheus) · `GET /budgets/{tenant}` |
+| Evaluation | `GET /evaluations/datasets` · `POST /evaluations` · `GET /evaluations/{id}` · `POST /evaluations/compare` · `POST /redteam/run` |
+| Multi-agent | `GET /orchestrations/agents` · `POST /orchestrations/run` |
+| Enforcement core | `POST /decisions` · `POST /gateway/authorize` · `POST /tools/execute` · `POST /mcp/call` · `/agents` · `/security/*` · `/delegations/*` · `/anomaly/*` · `/control-plane/snapshot` · `/health` |
+
+## Security model
+
+1. **Identify first.** Unknown, suspended or revoked agents cannot execute tools.
+2. **Least privilege.** The action must be in the agent's permission set; sub-agents get only what their job needs.
+3. **Credential isolation.** Every run gets short-lived credentials scoped to one tool's actions.
+4. **Server-side ownership.** Resource owner and tenant are resolved from the data, never taken from the prompt.
+5. **Untrusted text is data.** Content from documents, tools, email and other agents is tracked and scored on every later call.
+6. **Strictest decision wins.** Declarative rules can only tighten the baseline risk policy.
+7. **Humans for high impact.** Approvals are role-routed, fingerprint-bound, expiring, single-use and re-checked on resume.
+8. **Minimise what leaves.** Redaction for outbound payloads, plus an output guard on answers.
+9. **Bounded spend.** Step, token and ₹ budgets per run and per tenant per day, and per-action rate limits.
+10. **Evidence for everything.** A SHA-256 hash-chained audit with policy id, trace id and tenant; full traces; persisted when Supabase is configured.
+11. **Fail closed.** Bad credentials, missing production auth, an invalid policy file or a planner/provider error all deny rather than degrade.
+12. **No LLM in the enforcement path.** Authorization, inspection, scoring and policy are deterministic code.
+
+Details: [docs/threat-model.md](docs/threat-model.md) maps threats to the OWASP LLM and Agentic Top 10.
 
 ## Production configuration
 
-Environment variables:
+| Variable | Purpose |
+|---|---|
+| `AGENTGUARD_ENV` | `production` enables fail-closed authentication. |
+| `AGENTGUARD_API_KEY` / `AGENTGUARD_OPERATORS` | Operator keys (`key:admin|reviewer|viewer`). Reviewers may decide approvals, resume runs and simulate policies. |
+| `AGENTGUARD_POLICY_FILE` | YAML/JSON policy pack. If it fails validation, startup stops. |
+| `AGENTGUARD_CORS_ORIGINS`, `AGENTGUARD_RATE_LIMIT`, `AGENTGUARD_RATE_LIMIT_WINDOW`, `AGENTGUARD_POLICY_VERSION` | API boundary settings. |
+| `SUPABASE_URL`, `SUPABASE_SERVICE_KEY` | Durable persistence (server-side only). Apply `supabase/migrations/*` first. |
+| `SENTINELFORGE_LLM_API_KEY`, `SENTINELFORGE_LLM_BASE_URL`, `SENTINELFORGE_LLM_MODEL` | Enable the LLM-backed agent version on any OpenAI-compatible endpoint. |
+| `SENTINELFORGE_CONSOLE_KEY` (console) | Dedicated server-side key for the console proxy. |
 
-- `AGENTGUARD_ENV` — deployment environment. Set to `production` for production deployments.
-- `AGENTGUARD_CORS_ORIGINS` — comma-separated frontend origins; do not use `*` with credentialed browser access.
-- `AGENTGUARD_API_KEY` — API boundary key. It is required for protected routes in production and supports `X-API-Key` or `Authorization: Bearer ...`.
-- `AGENTGUARD_OPERATORS` — optional comma-separated `key:role` entries for `admin`, `reviewer`, or `viewer` operators. The legacy `AGENTGUARD_API_KEY`, when present, remains an `admin` key.
-- `AGENTGUARD_RATE_LIMIT` — maximum protected requests per client/path during the configured window; defaults to `120`.
-- `AGENTGUARD_RATE_LIMIT_WINDOW` — rate-limit window in seconds; defaults to `60`.
-- `AGENTGUARD_POLICY_VERSION` — policy version stamped into audit events.
-- `SUPABASE_URL` — server-side Supabase project URL.
-- `SUPABASE_SERVICE_KEY` — server-side secret key; never expose it to the frontend or commit it to source control.
+Install `.[otel]` and configure a standard OTLP exporter to ship spans to Jaeger, Tempo, Honeycomb or Datadog.
+Scrape `/api/v1/observability/metrics` with Prometheus.
 
-Never put real provider tokens into source control. The credential broker returns an opaque token only at issuance and the production schema stores only a token hash.
+## CI
 
-Role enforcement is centralized at the API boundary: viewers can read, reviewers can
-also decide approvals, and admins can perform all control-plane mutations. Production
-requires at least one configured operator credential.
-
-## Verification
-
-The backend test suite covers the core security invariants, including:
-
-- unknown/suspended agents
-- least-privilege credential issuance
-- runtime decision enforcement
-- approval lifecycle
-- API-key authentication and CORS preflight
-- production fail-closed behavior
-- request rate limiting
-- tamper-evident audit chaining and persisted-chain recovery
-- HTTP MCP credential enforcement
-- tool execution failure auditing
-
-CI must be green before considering a change complete.
-
-## Repository layout
-
-```text
-agentguard/
-├── frontend/                 # Next.js security console
-├── backend/
-│   ├── app/                  # FastAPI control plane + enforcement
-│   └── tests/                # security and API regression tests
-├── policy/opa/               # Rego policy + tests
-├── supabase/migrations/      # durable PostgreSQL/Supabase schema
-├── .github/workflows/        # backend + frontend CI
-├── Dockerfile
-├── docker-compose.yml
-└── README.md
-```
-
-## Operational integrations still outside the core runtime
-
-The deterministic enforcement core is complete without an AI/ML/LLM dependency. Production environments may still add infrastructure-specific integrations such as authenticated operator sessions with Supabase Auth/RLS, Redis Streams or another distributed event transport, OpenTelemetry/Prometheus, external KMS/HSM-backed provider credentials, deployment-specific secret management, and infrastructure-level distributed rate limiting. Those concerns belong at the deployment boundary rather than inside the authorization logic.
+Every push runs the backend tests, checks that the datasets regenerate identically, runs three release gates
+(v1.0 and v2.1 must pass, v2.0 must be blocked), uploads the evaluation evidence, runs the Rego parity tests,
+builds the console and builds both Docker images.
 
 ## License
 

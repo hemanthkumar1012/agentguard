@@ -1,0 +1,134 @@
+# SentinelForge policy pack: fintech support operations.
+# Loaded with AGENTGUARD_POLICY_FILE=policy/rules/fintech_support.yaml.
+# Conditions in `when` are ANDed. When several rules match, the strictest decision wins:
+#   deny > escalate_to_human > require_approval > allow_with_redaction > rate_limit > allow
+# See docs/policy-language.md for every supported condition.
+version: fintech-support-2026.10
+policies:
+- id: cross-tenant-access
+  description: Agents may never touch another tenant's resources.
+  when:
+    tenant_mismatch: true
+  decision: deny
+  reason: Cross-tenant access is never permitted.
+- id: cross-customer-data-access
+  description: A customer-facing session may only access the requesting customer's own records.
+  when:
+    owner_mismatch: true
+    not_user_role:
+    - admin
+    - support_manager
+  decision: deny
+  reason: Resource belongs to a different customer than the authenticated user.
+- id: injected-instruction-privileged-action
+  description: Instructions found inside untrusted content must not trigger privileged tools.
+  when:
+    injection_detected: true
+    action:
+    - email.send
+    - customers.export
+    - refund.issue
+    - subscription.cancel
+    - db.write
+    - permissions.change
+  decision: deny
+  reason: Prompt-injection indicators detected on a privileged action.
+- id: bulk-export-denied
+  description: Customer exports are restricted to admin and compliance roles.
+  when:
+    action: customers.export
+    not_user_role:
+    - admin
+    - compliance_officer
+  decision: deny
+  reason: Bulk customer export is not permitted for this role.
+- id: bulk-export-approval
+  description: Even permitted roles need a compliance officer's approval to export.
+  when:
+    action: customers.export
+    user_role:
+    - admin
+    - compliance_officer
+  decision: require_human_approval
+  approver_role: compliance_officer
+- id: refund-requires-order
+  description: Every refund must reference a specific order (found by the v2.0 evaluation run).
+  when:
+    action:
+    - refund.issue
+    - refund.request
+    arg_equals:
+      order_id: null
+  decision: deny
+  reason: Refunds must reference a verified order.
+- id: refund-hard-cap
+  description: No single refund above 1,00,000 can be issued by an agent.
+  when:
+    action: refund.issue
+    amount_greater_than: 100000
+  decision: deny
+  reason: Refund exceeds the absolute per-transaction cap.
+- id: refund-above-threshold
+  description: Refunds above 5,000 need finance manager approval.
+  when:
+    action: refund.issue
+    amount_greater_than: 5000
+  decision: require_human_approval
+  approver_role: finance_manager
+- id: subscription-cancel-approval
+  description: Cancelling a subscription is account-impacting and needs a human.
+  when:
+    action: subscription.cancel
+  decision: require_human_approval
+  approver_role: support_manager
+- id: external-email-approval
+  description: Email to an external recipient needs human approval.
+  when:
+    action: email.send
+    target_external: true
+  decision: require_human_approval
+  approver_role: support_manager
+- id: production-write-escalation
+  description: Production data writes and permission changes are escalated to a human operator.
+  when:
+    environment: production
+    action:
+    - db.write
+    - permissions.change
+  decision: escalate_to_human
+  approver_role: platform_admin
+- id: outbound-pii-redaction
+  description: Sensitive findings in outbound content are redacted instead of sent.
+  when:
+    action:
+    - email.send
+    - ticket.create
+    has_findings: true
+  decision: allow_with_redaction
+- id: refund-request-rate-limit
+  description: At most 5 refund requests per agent per minute.
+  when:
+    action: refund.request
+  decision: rate_limit
+  rate_limit:
+    limit: 5
+    window_seconds: 60
+    scope: agent
+- id: ticket-rate-limit
+  description: At most 20 tickets per agent per minute.
+  when:
+    action: ticket.create
+  decision: rate_limit
+  rate_limit:
+    limit: 20
+    window_seconds: 60
+    scope: agent
+- id: order-read-rate-limit
+  description: At most 60 order reads per agent per minute.
+  when:
+    action: order.read
+  decision: rate_limit
+  rate_limit:
+    limit: 60
+    window_seconds: 60
+    scope: agent

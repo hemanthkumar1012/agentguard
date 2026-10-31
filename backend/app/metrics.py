@@ -23,6 +23,9 @@ def snapshot(registry: AgentRegistry, audit: AuditLedger) -> dict:
             "allow": decisions.get("allow", 0),
             "require_approval": decisions.get("require_approval", 0),
             "block": decisions.get("block", 0),
+            "allow_with_redaction": decisions.get("allow_with_redaction", 0),
+            "rate_limit": decisions.get("rate_limit", 0),
+            "escalate_to_human": decisions.get("escalate_to_human", 0),
         },
         "risk": {
             "average": round(sum(risk_scores) / len(risk_scores), 2) if risk_scores else 0,

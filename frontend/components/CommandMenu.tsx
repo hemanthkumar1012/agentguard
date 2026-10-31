@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { Command } from "cmdk";
-import { LayoutDashboard, Users, Activity, ShieldAlert, ShieldCheck, Key, Network, Target } from "lucide-react";
+import { LayoutDashboard, Users, Activity, ShieldAlert, ShieldCheck, Key, Network, Target, ListTree, MessageSquare, Workflow, FlaskConical } from "lucide-react";
 
 export function CommandMenu({ setView }: { setView: (view: any) => void }) {
   const [open, setOpen] = React.useState(false);
@@ -106,28 +106,38 @@ export function CommandMenu({ setView }: { setView: (view: any) => void }) {
                 <Command.Item onSelect={() => { setView("overview"); setOpen(false); }}>
                   <LayoutDashboard size={16} /> Overview
                 </Command.Item>
-                <Command.Item onSelect={() => { setView("agents"); setOpen(false); }}>
-                  <Users size={16} /> Agents
-                </Command.Item>
-                <Command.Item onSelect={() => { setView("events"); setOpen(false); }}>
-                  <Activity size={16} /> Security Events
+                <Command.Item onSelect={() => { setView("traces"); setOpen(false); }}>
+                  <ListTree size={16} /> Trace Explorer
                 </Command.Item>
                 <Command.Item onSelect={() => { setView("approvals"); setOpen(false); }}>
-                  <ShieldAlert size={16} /> Approvals
+                  <ShieldAlert size={16} /> Approval Inbox
+                </Command.Item>
+                <Command.Item onSelect={() => { setView("playground"); setOpen(false); }}>
+                  <MessageSquare size={16} /> Agent Playground
+                </Command.Item>
+                <Command.Item onSelect={() => { setView("multiagent"); setOpen(false); }}>
+                  <Workflow size={16} /> Multi-Agent
+                </Command.Item>
+                <Command.Item onSelect={() => { setView("evaluations"); setOpen(false); }}>
+                  <FlaskConical size={16} /> Evaluations
+                </Command.Item>
+                <Command.Item onSelect={() => { setView("redteam"); setOpen(false); }}>
+                  <Target size={16} /> Red-Team Lab
                 </Command.Item>
                 <Command.Item onSelect={() => { setView("policies"); setOpen(false); }}>
-                  <ShieldCheck size={16} /> Policies
+                  <ShieldCheck size={16} /> Policy Studio
                 </Command.Item>
-              </Command.Group>
-              <Command.Group heading="Settings">
-                 <Command.Item onSelect={() => { setView("credentials"); setOpen(false); }}>
+                <Command.Item onSelect={() => { setView("agents"); setOpen(false); }}>
+                  <Users size={16} /> Identities
+                </Command.Item>
+                <Command.Item onSelect={() => { setView("events"); setOpen(false); }}>
+                  <Activity size={16} /> Audit Log
+                </Command.Item>
+                <Command.Item onSelect={() => { setView("credentials"); setOpen(false); }}>
                   <Key size={16} /> Credentials
                 </Command.Item>
                 <Command.Item onSelect={() => { setView("mcp"); setOpen(false); }}>
                   <Network size={16} /> MCP Gateway
-                </Command.Item>
-                <Command.Item onSelect={() => { setView("simulator"); setOpen(false); }}>
-                  <Target size={16} /> Attack Simulator
                 </Command.Item>
               </Command.Group>
             </Command.List>

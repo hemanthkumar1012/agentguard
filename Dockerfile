@@ -10,6 +10,9 @@ COPY backend/requirements.txt ./backend/requirements.txt
 RUN python -m pip install --no-cache-dir -r ./backend/requirements.txt
 
 COPY backend ./backend
+# Evaluation datasets and policy packs are resolved relative to the repository root.
+COPY datasets ./datasets
+COPY policy ./policy
 
 RUN useradd --create-home --uid 10001 agentguard \
     && chown -R agentguard:agentguard /app

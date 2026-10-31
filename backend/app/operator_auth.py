@@ -39,6 +39,13 @@ def can_access(role: str, method: str, path: str) -> bool:
         return True
     if method in {"GET", "HEAD"}:
         return True
-    if role == "reviewer" and method == "POST" and path.startswith("/api/v1/approvals/") and path.endswith("/decision"):
-        return True
+    if role == "reviewer" and method == "POST":
+        if path.startswith("/api/v1/approvals/") and path.endswith("/decision"):
+            return True
+        # Resuming a run only continues work a human already approved; the gateway re-checks it.
+        if path.startswith("/api/v1/runs/") and path.endswith("/resume"):
+            return True
+        # Previewing a decision has no side effects.
+        if path == "/api/v1/policies/simulate":
+            return True
     return False

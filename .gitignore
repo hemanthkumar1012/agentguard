@@ -32,3 +32,6 @@ Thumbs.db
 # Local infrastructure
 postgres-data/
 redis-data/
+
+# Evaluation evidence written by scripts/release_gate.py --json
+backend/eval-*.json

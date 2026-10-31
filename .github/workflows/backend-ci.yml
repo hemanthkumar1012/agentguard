@@ -33,6 +33,44 @@ jobs:
       - name: Run tests
         run: python -m pytest -q
 
+      - name: Datasets are reproducible from the generator
+        working-directory: .
+        run: python datasets/generate_datasets.py && git diff --exit-code datasets/
+
+      - name: Release gate - released version must pass
+        run: python scripts/release_gate.py support-agent-v1.0 --json eval-v1.0.json
+
+      - name: Release gate - fixed candidate must pass
+        run: python scripts/release_gate.py support-agent-v2.1
+
+      - name: Release gate - regressed candidate must be blocked
+        run: python scripts/release_gate.py support-agent-v2.0 --expect blocked
+
+      - name: Upload evaluation evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: evaluation-evidence
+          path: backend/eval-*.json
+          if-no-files-found: ignore
+
       - name: Build production API image
         working-directory: .
         run: docker build --tag agentguard-api:ci .
+
+  policy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up OPA
+        uses: open-policy-agent/setup-opa@v2
+        with:
+          version: latest
+
+      - name: Rego policy tests (parity with the Python engine)
+        run: opa test policy/opa -v
+
+      - name: Rego formatting
+        run: opa fmt --list --fail policy/opa/sentinelforge.rego policy/opa/sentinelforge_test.rego

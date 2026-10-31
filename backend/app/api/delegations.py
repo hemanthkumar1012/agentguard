@@ -1,11 +1,10 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
-from app.agent_auth import AgentAuthorization
-from app.services import agent_registry, persistence
+from app.services import delegation_authorizer
 
 router = APIRouter(prefix="/delegations", tags=["delegations"])
-authorizer = AgentAuthorization(agent_registry, store=persistence)
+authorizer = delegation_authorizer
 
 
 class GrantRequest(BaseModel):
