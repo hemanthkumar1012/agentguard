@@ -171,6 +171,10 @@ agentguard/
 
 The deterministic enforcement core is complete without an AI/ML/LLM dependency. Production environments may still add infrastructure-specific integrations such as authenticated operator sessions with Supabase Auth/RLS, Redis Streams or another distributed event transport, OpenTelemetry/Prometheus, external KMS/HSM-backed provider credentials, deployment-specific secret management, and infrastructure-level distributed rate limiting. Those concerns belong at the deployment boundary rather than inside the authorization logic.
 
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the branch and PR workflow, [SECURITY.md](SECURITY.md) for reporting vulnerabilities, and run `make help` for common development commands.
+
 ## License
 
 MIT
