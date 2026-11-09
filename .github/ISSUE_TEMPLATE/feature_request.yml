@@ -1,0 +1,21 @@
+name: Feature request
+description: Propose a new control or capability
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Security problem
+      description: What agent behaviour should AgentGuard detect, block, or control?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed control
+    validations:
+      required: true
+  - type: textarea
+    id: threat
+    attributes:
+      label: Threat model / attack scenario
