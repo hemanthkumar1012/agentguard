@@ -1,0 +1,35 @@
+name: Bug report
+description: Report incorrect behaviour in AgentGuard
+labels: [bug]
+body:
+  - type: dropdown
+    id: component
+    attributes:
+      label: Component
+      options:
+        - Backend API / gateway
+        - Policy engine / OPA
+        - Risk engine / data inspection
+        - Credential broker
+        - Frontend console
+        - Deployment
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Include the request payload (with secrets removed).
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected vs actual decision
+      placeholder: "Expected: deny (risk 0.82). Actual: allow."
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Commit or version
