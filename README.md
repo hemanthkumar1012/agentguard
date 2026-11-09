@@ -1,5 +1,8 @@
 # AgentGuard
 
+[![Backend CI](https://github.com/hemanthkumar1012/agentguard/actions/workflows/backend-ci.yml/badge.svg)](https://github.com/hemanthkumar1012/agentguard/actions/workflows/backend-ci.yml)
+[![Frontend CI](https://github.com/hemanthkumar1012/agentguard/actions/workflows/frontend-ci.yml/badge.svg)](https://github.com/hemanthkumar1012/agentguard/actions/workflows/frontend-ci.yml)
+
 **Runtime Security & Control Plane for AI Agents**
 
 AgentGuard is a deterministic security enforcement layer for agentic systems. It answers a runtime security question that static RBAC cannot answer reliably:
