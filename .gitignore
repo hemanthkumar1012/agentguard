@@ -32,3 +32,8 @@ Thumbs.db
 # Local infrastructure
 postgres-data/
 redis-data/
+
+# Python packaging
+*.egg-info/
+build/
+pip-wheel-metadata/
