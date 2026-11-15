@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { Command } from "cmdk";
-import { LayoutDashboard, Users, Activity, ShieldAlert, ShieldCheck, Key, Network, Target } from "lucide-react";
+import { LayoutDashboard, Users, Activity, ShieldAlert, ShieldCheck, Key, Network, Target, Globe2 } from "lucide-react";
 
 export function CommandMenu({ setView }: { setView: (view: any) => void }) {
   const [open, setOpen] = React.useState(false);
@@ -128,6 +128,9 @@ export function CommandMenu({ setView }: { setView: (view: any) => void }) {
                 </Command.Item>
                 <Command.Item onSelect={() => { setView("simulator"); setOpen(false); }}>
                   <Target size={16} /> Attack Simulator
+                </Command.Item>
+                <Command.Item onSelect={() => { setView("browser"); setOpen(false); }}>
+                  <Globe2 size={16} /> Browser Guard
                 </Command.Item>
               </Command.Group>
             </Command.List>

@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AgentGuard Browser Configuration</title>
+  <link rel="stylesheet" href="options.css">
+</head>
+<body>
+  <main class="shell">
+    <div class="brand"><span class="mark">AG</span><div><strong>AgentGuard Browser Security</strong><small>CHROME EXTENSION CONFIGURATION</small></div></div>
+
+    <section class="card hero">
+      <h1>Connect this browser to AgentGuard</h1>
+      <p>Use a dedicated AgentGuard agent and a short-lived browser token. The permanent operator API key and Supabase service key never belong in the extension.</p>
+    </section>
+
+    <form id="form" class="card">
+      <label>Backend URL<input id="backendUrl" type="url" required></label>
+      <label>Agent ID<input id="agentId" type="text" placeholder="agt_..." required></label>
+      <label>Browser token<textarea id="browserToken" rows="5" placeholder="eyJ..."></textarea></label>
+      <label class="check"><input id="enabled" type="checkbox"> Enable fail-closed browser protection</label>
+      <div class="actions"><button type="submit">Save configuration</button><button type="button" id="test" class="secondary">Test token</button></div>
+      <div id="message" class="message"></div>
+    </form>
+
+    <section class="card">
+      <h2>Setup flow</h2>
+      <ol>
+        <li>Create an AgentGuard agent with the <code>submit_prompt</code> permission.</li>
+        <li>Use the protected control-plane API to issue a browser token for that agent.</li>
+        <li>Paste the token here, enable protection, and reload the supported AI tab.</li>
+      </ol>
+    </section>
+  </main>
+  <script src="options.js"></script>
+</body>
+</html>
