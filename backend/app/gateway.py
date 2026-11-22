@@ -3,11 +3,15 @@ from dataclasses import dataclass
 from app.audit import AuditLedger
 from app.approvals import ApprovalStore
 from app.config import settings
-from app.data_inspector import inspect
+from app.data_inspector import inspect_outbound
 from app.domain import ActionRequest, Decision, DecisionResponse
 from app.identity import AgentRegistry, AgentStatus
+from app.opa_client import PolicyEngineUnavailable, decide as opa_decide
 from app.policy import evaluate
 from app.risk import assess
+
+
+SENSITIVE_OUTBOUND_REASON = "Sensitive data was found in the outbound request, so a human must approve it."
 
 
 @dataclass(frozen=True)
@@ -104,9 +108,8 @@ class ToolGateway:
 
     @staticmethod
     def _evaluate(request: ActionRequest) -> tuple[DecisionResponse, list[str], list[str]]:
-        findings: list[str] = []
-        if request.content:
-            findings = inspect(request.content)["findings"]
+        # Inspect everything that leaves through the tool, not only the declared content.
+        findings: list[str] = inspect_outbound(request.content, request.execution_payload)["findings"]
 
         assessment = assess(request)
         factors = list(assessment.factors)
@@ -116,4 +119,23 @@ class ToolGateway:
             factors.append("sensitive-content-detected")
 
         effective = request.model_copy(update={"risk_score": score})
-        return evaluate(effective), factors, findings
+
+        if settings.opa_url:
+            try:
+                decision, reason = opa_decide(settings.opa_url, request, findings)
+            except PolicyEngineUnavailable:
+                factors.append("policy-engine-unavailable")
+                blocked = ToolGateway._blocked(effective, "Policy engine unavailable, so the request was blocked (fail closed).")
+                return blocked, factors, findings
+            response = DecisionResponse(decision=decision, reason=reason, agent_id=request.agent_id,
+                                        action=request.action, target=request.target, risk_score=score)
+            return response, factors, findings
+
+        response = evaluate(effective)
+        if findings and response.decision == Decision.ALLOW:
+            # Detected secrets or personal data must never leave without a human decision.
+            response = response.model_copy(update={
+                "decision": Decision.REQUIRE_APPROVAL,
+                "reason": SENSITIVE_OUTBOUND_REASON,
+            })
+        return response, factors, findings
