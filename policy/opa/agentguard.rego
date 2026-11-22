@@ -148,54 +148,71 @@ blocked if {
 }
 
 sensitive_approval_required if {
-    sensitive_classification
-    contextual_risk_score >= 60
+	sensitive_classification
+	contextual_risk_score >= 60
+}
+
+# Approval is needed for sensitive data at medium risk, for any request at high risk,
+# and whenever secrets or personal data are found in what leaves through the tool.
+approval_required if {
+	sensitive_approval_required
+}
+
+approval_required if {
+	contextual_risk_score >= 70
+}
+
+approval_required if {
+	count(data_findings) > 0
 }
 
 decision := "block" if {
-    blocked
+	blocked
 }
 
-reason := "Scoped credential is invalid, expired, revoked, or insufficient." if {
-    not identity_or_permission_invalid
-    credential_invalid
-}
-
-reason := "High-risk action exceeds the runtime risk threshold." if {
-    not identity_or_permission_invalid
-    not credential_invalid
-    high_impact_action
-    contextual_risk_score >= 80
-}
-
+# Before 2026-11-22 "allow" required a risk below 60, so a non-sensitive request at 60-69
+# matched no rule and fell through to the default "block" with a misleading reason, while the
+# Python policy allowed it. Allow is now exactly "not blocked and no approval needed".
 decision := "require_approval" if {
-    not blocked
-    sensitive_classification
-    contextual_risk_score >= 60
-}
-
-decision := "require_approval" if {
-    not blocked
-    contextual_risk_score >= 70
-}
-
-reason := "Sensitive data access requires human approval at this risk level." if {
-    not blocked
-    sensitive_classification
-    contextual_risk_score >= 60
-}
-
-reason := "Risk score requires human approval before execution." if {
-    not blocked
-    not sensitive_approval_required
-    contextual_risk_score >= 70
+	not blocked
+	approval_required
 }
 
 decision := "allow" if {
-    not blocked
-    contextual_risk_score < 60
+	not blocked
+	not approval_required
+}
+
+reason := "Scoped credential is invalid, expired, revoked, or insufficient." if {
+	not identity_or_permission_invalid
+	credential_invalid
+}
+
+reason := "High-risk action exceeds the runtime risk threshold." if {
+	not identity_or_permission_invalid
+	not credential_invalid
+	high_impact_action
+	contextual_risk_score >= 80
+}
+
+reason := "Sensitive data access requires human approval at this risk level." if {
+	not blocked
+	sensitive_approval_required
+}
+
+reason := "Risk score requires human approval before execution." if {
+	not blocked
+	not sensitive_approval_required
+	contextual_risk_score >= 70
+}
+
+reason := "Sensitive data was found in the outbound request, so a human must approve it." if {
+	not blocked
+	not sensitive_approval_required
+	contextual_risk_score < 70
+	count(data_findings) > 0
 }
 
 reason := "Request satisfies the initial runtime policy." if {
-    decision == "allow"
+	decision == "allow"
 }

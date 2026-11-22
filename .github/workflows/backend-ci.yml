@@ -30,6 +30,15 @@ jobs:
       - name: Install package and test dependencies
         run: python -m pip install --upgrade pip && python -m pip install -e ".[test]"
 
+      - name: Set up OPA
+        uses: open-policy-agent/setup-opa@v2
+        with:
+          version: latest
+
+      - name: Test the Rego policy
+        run: opa test ../policy/opa -v
+
+      # includes tests/test_policy_parity.py, which compares the Rego and Python decisions
       - name: Run tests
         run: python -m pytest -q
 

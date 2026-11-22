@@ -15,6 +15,8 @@ class Settings(BaseModel):
     operators: str | None = os.getenv("AGENTGUARD_OPERATORS")
     supabase_url: str | None = os.getenv("SUPABASE_URL")
     supabase_service_key: str | None = os.getenv("SUPABASE_SERVICE_KEY")
+    # optional OPA server, e.g. http://localhost:8181; empty means the Python policy is used
+    opa_url: str | None = os.getenv("AGENTGUARD_OPA_URL") or None
     rate_limit_requests: int = Field(default_factory=lambda: int(os.getenv("AGENTGUARD_RATE_LIMIT", "120")), ge=1)
     rate_limit_window_seconds: int = Field(default_factory=lambda: int(os.getenv("AGENTGUARD_RATE_LIMIT_WINDOW", "60")), ge=1)
 
