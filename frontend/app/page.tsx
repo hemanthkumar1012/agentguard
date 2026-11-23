@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
   LayoutDashboard, Users, Activity, CheckCircle2, 
@@ -41,20 +41,45 @@ function formatDate(value?: string) { return value ? new Date(value).toLocaleStr
 export default function Home() {
   const [view, setView] = useState<View>("overview");
   const [data, setData] = useState<Snapshot>(fallback);
-  const [connected, setConnected] = useState(false);
+  // "connecting" until the first answer, so the badge never claims "offline" before it has checked.
+  const [connection, setConnection] = useState<"connecting" | "connected" | "offline">("connecting");
+  const [offlineReason, setOfflineReason] = useState("");
   const [items, setItems] = useState<Agent[] | Event[] | Approval[] | Credential[]>([]);
+  // The view whose list was requested last. A slower, older response must not overwrite it.
+  const latestView = useRef<View>("overview");
 
   async function loadSnapshot() {
-    try { const res = await fetch("/api/control-plane/snapshot", { cache: "no-store" }); if (!res.ok) throw new Error(); setData(await res.json()); setConnected(true); }
-    catch { setConnected(false); }
+    try {
+      const res = await fetch("/api/control-plane/snapshot", { cache: "no-store" });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.detail ?? `HTTP ${res.status}`);
+      }
+      setData(await res.json());
+      setConnection("connected");
+      setOfflineReason("");
+    } catch (error) {
+      setConnection("offline");
+      setOfflineReason(error instanceof Error ? error.message : "Request failed");
+    }
   }
 
   async function loadView(nextView: View) {
+    latestView.current = nextView;
     setView(nextView);
+    // Clear the previous view's rows in the same render, so a table never draws rows of another type.
+    setItems([]);
     const resource = nextView === "agents" ? "agents" : nextView === "events" ? "events" : nextView === "approvals" ? "approvals" : nextView === "credentials" ? "credentials" : null;
     if (!resource) return;
-    try { const res = await fetch(`/api/control-plane/${resource}`, { cache: "no-store" }); if (!res.ok) throw new Error(); const body = await res.json(); setItems(body.agents ?? body.events ?? body.approvals ?? body.credentials ?? []); }
-    catch { setItems([]); }
+    try {
+      const res = await fetch(`/api/control-plane/${resource}`, { cache: "no-store" });
+      if (!res.ok) throw new Error();
+      const body = await res.json();
+      if (latestView.current !== nextView) return;
+      setItems(body.agents ?? body.events ?? body.approvals ?? body.credentials ?? []);
+    } catch {
+      if (latestView.current === nextView) setItems([]);
+    }
   }
 
   useEffect(() => { loadSnapshot(); const id = setInterval(loadSnapshot, 5000); return () => clearInterval(id); }, []);
@@ -82,8 +107,8 @@ export default function Home() {
           ))}
         </nav>
         <div className="side-status">
-          <span className={connected ? "dot live" : "dot"}></span>
-          {connected ? "API connected" : "API offline"}
+          <span className={connection === "connected" ? "dot live" : "dot"}></span>
+          <span title={offlineReason}>{connection === "connected" ? "API connected" : connection === "connecting" ? "Connecting..." : "API offline"}</span>
           <span style={{ marginLeft: "auto", fontSize: "10px", color: "#52525b" }}>CMD+K</span>
         </div>
       </aside>
