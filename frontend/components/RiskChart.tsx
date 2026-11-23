@@ -2,18 +2,22 @@
 
 import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
-// Simulated risk data over time to demonstrate the visual capability
-const data = [
-  { time: "00:00", risk: 20 },
-  { time: "04:00", risk: 22 },
-  { time: "08:00", risk: 45 },
-  { time: "12:00", risk: 30 },
-  { time: "16:00", risk: 75 }, // Security Event Spike
-  { time: "20:00", risk: 25 },
-  { time: "24:00", risk: 20 },
-];
+type RiskEvent = { event_id: string; risk_score: number; created_at: string };
 
-export function RiskChart() {
+// Plots the risk score of each recent decision, oldest to newest. Earlier versions drew a fixed,
+// made-up curve here; with no decisions yet the chart now says so instead.
+export function RiskChart({ events }: { events: RiskEvent[] }) {
+  const data = [...events].reverse().map(e => ({
+    time: new Date(e.created_at).toLocaleTimeString([], { hour12: false }),
+    risk: Math.round(e.risk_score),
+  }));
+  if (data.length === 0) {
+    return (
+      <div style={{ height: 120, marginTop: 24, marginBottom: 16, display: "flex", alignItems: "center", justifyContent: "center", color: "#52525b", fontSize: 13 }}>
+        No decisions yet
+      </div>
+    );
+  }
   return (
     <div style={{ width: "100%", height: 120, marginTop: 24, marginBottom: 16 }}>
       <ResponsiveContainer width="100%" height="100%">

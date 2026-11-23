@@ -155,7 +155,7 @@ function Overview({ data, refresh }: { data: Snapshot; refresh: () => void }) {
         <section className="panel risk">
           <PanelHead eyebrow="RISK ENGINE" title="Environment risk" badge="LIVE" />
           <div className="score"><strong>{Math.round(data.risk.average)}</strong><span>/100</span></div>
-          <RiskChart />
+          <RiskChart events={data.recent_events} />
           <div className="risk-meta"><span>Average risk</span><span>Peak {Math.round(data.risk.maximum)}</span></div>
           <p className="hint">Risk is calculated from action impact, data classification, target context and detected sensitive content.</p>
         </section>
@@ -168,7 +168,7 @@ function Overview({ data, refresh }: { data: Snapshot; refresh: () => void }) {
             <div><b>{data.agents.revoked}</b><span>Revoked</span></div>
           </div>
           <div className="mini-line"><span>Active fleet</span><b>{data.agents.total ? Math.round(data.agents.active / data.agents.total * 100) : 0}%</b></div>
-          <TerminalStream />
+          <TerminalStream events={data.recent_events} />
         </section>
       </div>
 
