@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException
 
 from app.config import settings
-from app.services import audit_ledger, persistence
+from app.services import audit_ledger, flow_engine, persistence
 
 router = APIRouter(prefix="/health", tags=["health"])
 
@@ -28,6 +28,16 @@ def readiness():
             checks["persistence"] = "ok"
         except Exception:
             checks["persistence"] = "failed"
+
+    store = flow_engine.sessions
+    if hasattr(store, "ping"):
+        try:
+            checks["flow_labels"] = "ok" if store.ping() else "failed"
+        except Exception:
+            checks["flow_labels"] = "failed"
+    else:
+        # Labels in process memory are lost on restart and not shared between workers.
+        checks["flow_labels"] = "process_memory"
 
     if settings.environment.lower() == "production" and not settings.api_key:
         checks["api_authentication"] = "failed"

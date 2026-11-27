@@ -16,6 +16,18 @@ jobs:
       run:
         working-directory: backend
 
+    # real Redis for the shared session-label tests (tests/test_redis_sessions.py)
+    services:
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping" --health-interval 5s --health-timeout 3s --health-retries 10
+
+    env:
+      AGENTGUARD_TEST_REDIS_URL: redis://localhost:6379/15
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -41,6 +53,10 @@ jobs:
       # includes tests/test_policy_parity.py, which compares the Rego and Python decisions
       - name: Run tests
         run: python -m pytest -q
+
+      # tests/test_attack_replays.py already gates the outcomes; this checks the report generator still runs
+      - name: Benchmark report (smoke run)
+        run: python -m benchmarks.run --iterations 200 > /dev/null
 
       - name: Build production API image
         working-directory: .

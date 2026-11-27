@@ -27,7 +27,8 @@ RISKS = [0, 30, 45, 55, 59, 60, 65, 69, 70, 75, 79, 80, 90]
 CLASSES = ["public", "pii", "secret"]
 ACTIONS = ["send_email", "export_data"]
 TARGETS = ["https://api.example.com", "external-crm", "http://legacy.example.com"]
-CONTENTS = [None, "contact me at someone@example.com"]
+# an email address is a low-severity finding (no approval by itself); a password is high-severity
+CONTENTS = [None, "contact me at someone@example.com", "password: hunter2"]
 
 
 def cases():
@@ -41,7 +42,8 @@ def test_rego_and_python_policies_agree(tmp_path, monkeypatch):
     requests = list(cases())
 
     python_decisions = [ToolGateway._evaluate(r)[0].decision.value for r in requests]
-    inputs = [build_input(r, inspect_outbound(r.content, r.execution_payload)["findings"]) for r in requests]
+    # the gateway passes only blocking (high-severity) findings to the policy, so the parity test does too
+    inputs = [build_input(r, inspect_outbound(r.content, r.execution_payload)["blocking"]) for r in requests]
 
     (tmp_path / "cases.json").write_text(json.dumps({"cases": inputs}))
     (tmp_path / "parity.rego").write_text(

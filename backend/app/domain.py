@@ -21,6 +21,8 @@ class ActionRequest(BaseModel):
     credential_token: str | None = Field(default=None, min_length=1, max_length=500)
     correlation_id: str | None = Field(default=None, min_length=1, max_length=100)
     approval_id: str | None = Field(default=None, min_length=1, max_length=100)
+    # Server-issued session (POST /flow/sessions). Without one, the agent's default session is used.
+    session_id: str | None = Field(default=None, min_length=1, max_length=100)
     execution_payload: dict = Field(default_factory=dict)
 
 
@@ -34,3 +36,7 @@ class DecisionResponse(BaseModel):
     risk_factors: list[str] = Field(default_factory=list)
     data_findings: list[str] = Field(default_factory=list)
     approval_id: str | None = None
+    session_id: str | None = None
+    flow_rule: str | None = None
+    # Earlier tool outputs whose fingerprints were found in this request.
+    lineage: list[dict] = Field(default_factory=list)

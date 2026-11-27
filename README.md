@@ -3,177 +3,185 @@
 [![Backend CI](https://github.com/hemanthkumar1012/agentguard/actions/workflows/backend-ci.yml/badge.svg)](https://github.com/hemanthkumar1012/agentguard/actions/workflows/backend-ci.yml)
 [![Frontend CI](https://github.com/hemanthkumar1012/agentguard/actions/workflows/frontend-ci.yml/badge.svg)](https://github.com/hemanthkumar1012/agentguard/actions/workflows/frontend-ci.yml)
 
-**Runtime Security & Control Plane for AI Agents**
+**A runtime firewall between AI agents and their tools that tracks where data came from and where it is going.**
 
-AgentGuard is a deterministic security enforcement layer for agentic systems. It answers a runtime security question that static RBAC cannot answer reliably:
+Prompt injection cannot be reliably detected in the text: the published agent leaks of 2025 (GitHub MCP,
+Supabase MCP, EchoLeak) all came from an agent that read attacker-written text, then private data, and
+then sent data out. AgentGuard does not try to spot the injection. It tracks the **flow**:
 
-> Should this particular agent be allowed to perform this particular action, with this particular data, against this particular target, right now?
+- it labels each agent session from what the tools AgentGuard runs actually return: "has read untrusted
+  content", "has read private data that only these people may read";
+- it fingerprints private tool output (winnowing, the algorithm behind MOSS), so the same data is
+  recognised later, even reformatted, base64-encoded or sent from another session;
+- before any outbound call it checks the destination's audience against the data's readers, and blocks
+  the **lethal trifecta** while letting normal work (replying to a customer with their own order) through;
+- it adds up pieces of secrets sent over several requests, and checks the URLs in a model's reply before a
+  client renders them (EchoLeak leaked through a rendered image, not a tool call);
+- agents never hold API keys: they use `{{secret:name}}` handles, and the gateway injects the key only for the
+  destinations that key is bound to;
+- labels are shared through Redis with compare-and-set, and every failure path blocks.
 
-It sits between agents and the tools/APIs they can execute, combining identity, least privilege, contextual risk, data inspection, scoped credentials, MCP controls, approvals, anomaly detection, delegation, and tamper-evident audit events.
+**Try to break it:** `make demo` (17-step self-checking story with an HTML report), `make playground` (type
+your own leak attempts against a session that has read an injected ticket), `make gemini` (a real Gemini agent
+behind AgentGuard; `--offline` runs without a key).
 
-## What is implemented
+Labels are never taken from the agent. Before this design, the agent sent its own `risk_score` and
+`data_classification`. An agent that had read a customer record could declare "public, risk 0" and
+export it ([findings log](docs/findings-log.md)).
 
-- **Agent identity:** register, inspect, suspend, revoke, and list agents.
-- **Runtime authorization:** all decision requests pass through the same gateway enforcement path used by tool execution.
-- **Risk engine:** sensitive-data, high-impact-action, external-target, and transport-risk factors.
-- **Data inspection:** detects common email, API-key, card-number, and secret markers before execution.
-- **Credential broker:** opaque, short-lived, agent/tool/scope-bound credentials; issuance is denied outside the agent's permissions.
-- **Tool gateway:** one enforcement point before tool execution.
-- **MCP boundary:** tool calls pass through AgentGuard authorization before the runtime executes them.
-- **Human approvals:** pending/approved/denied/expired approval lifecycle.
-- **Agent-to-agent delegation:** explicit source/target/action scopes.
-- **Behavior anomaly baseline:** deterministic, explainable rate-based anomaly scoring; no model or external AI service is required at runtime.
-- **Attack simulator:** deterministic synthetic attack scenarios for security demos and regression testing.
-- **Control-plane dashboard API:** agent posture, decision counts, risk statistics, and recent events.
-- **Forensic audit events:** policy version, correlation ID, tool, credential, risk factors, data findings, execution failures, and a SHA-256 hash chain restored from durable storage when configured.
-- **Production hardening:** CORS allowlist, constant-time API-key comparison, request IDs, security headers, no-store responses, fail-closed production authentication, and configurable API rate limiting.
-- **Durable persistence contract:** PostgreSQL/Supabase migration with RLS, indexes, and audit integrity columns.
-- **OPA policy:** Rego policy and regression tests kept in parity with the deterministic Python policy engine.
-- **CI:** backend tests and frontend production builds run on every push/PR to `main`.
+## Results
 
-## Architecture
+From [`docs/benchmarks.md`](docs/benchmarks.md), regenerated with `make bench`; the traces also run in CI.
 
-![AgentGuard architecture flow](docs/agentguard-architecture.svg)
-
-AgentGuard follows one deterministic enforcement path: **identify → inspect → score risk → evaluate policy → approve/block → issue scoped credentials → execute → audit → persist → observe**.
-
-The runtime authorization path has no AI/ML/LLM dependency. Security decisions, data inspection, risk scoring, anomaly scoring, policy evaluation, credential scoping, and audit integrity are implemented as deterministic application logic.
-
-
-## API surface
-
-All APIs are under `/api/v1`.
-
-| Area | Endpoint | Purpose |
+| | Before | After |
 |---|---|---|
-| Health | `GET /health` | Liveness |
-| Health | `GET /health/ready` | Dependency and audit-integrity readiness |
-| Agents | `POST /agents` | Register identity |
-| Agents | `GET /agents` | List identities |
-| Agents | `POST /agents/{id}/suspend` | Suspend identity |
-| Agents | `POST /agents/{id}/revoke` | Revoke identity |
-| Decisions | `POST /decisions` | Enforced runtime authorization decision |
-| Gateway | `POST /gateway/authorize` | Enforce runtime authorization |
-| Gateway | `GET /gateway/audit` | Audit stream |
-| Tools | `POST /tools/execute` | Authorized tool execution |
-| MCP | `POST /mcp/call` | Authorized MCP tool call |
-| Security | `POST /security/risk` | Contextual risk assessment |
-| Security | `POST /security/inspect` | Data/secret inspection |
-| Security | `POST /security/credentials` | Issue scoped credential |
-| Security | `POST /security/credentials/{id}/revoke` | Revoke credential |
-| Approvals | `/approvals/*` | Human approval workflow |
-| Delegation | `/delegations/*` | Agent-to-agent authorization |
-| Anomaly | `/anomaly/*` | Behavior baseline scoring |
-| Simulator | `/simulator/*` | Synthetic attack scenarios |
-| Control plane | `GET /control-plane/snapshot` | Dashboard metrics |
+| Reconstructed published attacks stopped (GitHub MCP toxic flow, Supabase MCP token leak, two EchoLeak paths) | 0 / 4 | 4 / 4 |
+| All attack traces stopped (adds memory recall, paraphrase, self-declared labels, secrets in pieces) | 6 / 10 * | 9 / 10 |
+| Benign traces needing approval or blocked | 6 / 9 | 2 / 9 (one intended approval, one known false block) |
+| Secret detector on the labelled corpus: recall / false-positive rate | 0.082 / 0.452 | 1.000 / 0.000 † |
+| Decision latency p50, 1 KB / 10 KB outbound body (all rules, 20 secrets tracked) | 0.12 / 0.44 ms | 1.0 / 4.1 ms |
 
-Interactive API documentation is available at `/docs` when the API is running.
+\* The old engine "stopped" those six only because it asked for approval on every request containing an
+email address. † Synthetic corpus written alongside the detectors: useful for comparing versions, not a
+real-world accuracy claim. The 50 known-gap cases are reported separately (0 caught).
 
-## Security model
+Known gaps, shown in the benchmark rather than hidden: a secret sent 3 characters at a time from a clean
+session gets through, and a session that reads two customers' records can no longer reply to either
+(label creep).
 
-1. **Identify first.** Unknown, suspended, or revoked agents cannot execute tools.
-2. **Least privilege.** The requested action must exist in the agent permission set.
-3. **Credential isolation.** Tool execution requires a credential bound to the same agent, tool, and action scope.
-4. **Inspect content.** Sensitive content increases runtime risk and is retained as findings, not as raw secrets in the audit contract.
-5. **Evaluate context.** Risk factors change the effective score before the policy decision.
-6. **Fail closed.** Invalid identity, permission, credential, and missing production API authentication result in denial rather than an unsafe fallback.
-7. **Audit everything.** Decisions and execution failures carry correlation, policy, tool, credential, risk, and data-inspection metadata.
-8. **Tamper evidence.** Audit events are SHA-256 chained and the persisted chain is restored when the durable store is configured.
-9. **No AI dependency in the enforcement path.** Runtime authorization, inspection, risk scoring, anomaly detection, and policy evaluation are deterministic application logic.
-10. **Defense in depth.** PostgreSQL/Supabase RLS protects the durable data boundary when persistence is configured.
+## How it is tested
+
+- **Exhaustive state exploration** (model checking): every reachable state of a small world (two sessions,
+  untrusted input, two customers, a secret, verbatim / base64 / split sends) is explored breadth first: 112
+  states, the last new one at depth 8, all 1,680 transitions checked for safety *and* permissiveness, so an
+  engine that blocks everything fails too. Six planted bugs, six caught.
+- **Model-based fuzzing** of the flow rules: random worlds and traces checked after every step by an
+  independent oracle (no allowed leak, labels only grow, declared risk never matters, …). 70,000 random
+  steps, no violations. The fuzzer was itself mutation-tested: it first caught 4 of 6 planted bugs, its
+  generator was fixed, now 6 of 6.
+- **Trace replays** of published attacks and ordinary work, gated in CI, with each layer switched on in turn
+  so every rule's contribution is visible.
+- **Concurrency tests**: several audit writers from 9 threads must keep one linear chain; 8 threads tainting
+  one session through real Redis must lose nothing (the test fails if the compare-and-set is removed).
+- **Policy parity**: the Rego and Python policies must agree over a grid of requests.
+- **Labelled corpus** for the secret detector, with a CI gate on recall and false-positive rate.
+
+## How a decision is made
+
+```
+identity → permission → session → scoped credential → content inspection + risk → policy (Python or OPA)
+        → data-flow rules (can only tighten) → human approval → hash-chained audit → label update
+```
+
+| Rule | When | Decision |
+|---|---|---|
+| F0 | session unknown, closed or another agent's | block |
+| F1 | session read untrusted content **and** private data, destination audience outside the data's readers | block |
+| F2 | private data, no untrusted content, destination outside readers | human approval |
+| F3 | fingerprints of earlier private output found in the request, destination outside its readers | block if untrusted, else approval |
+| F4 | untrusted content + high-impact state change (payment, delete) | human approval |
+| F5 | more than half of a secret's pieces have reached one destination domain, over any number of requests | block if untrusted, else approval |
+| O1 | a URL in a model reply could leak (`POST /flow/check-output`, called before rendering) | URL neutralised |
+| S1 | a `{{secret:name}}` handle is unknown, not allowed for this agent, or headed to a destination the secret is not bound to | block |
+
+Why each rule and severity, and what was rejected: [`docs/decisions/`](docs/decisions). Setup:
+[`docs/flow-control.md`](docs/flow-control.md).
+
+## Also in the box
+
+- **Agent identity:** register, suspend, revoke; unknown or inactive agents cannot act.
+- **Scoped credentials:** short-lived, opaque, bound to agent + tool + action; only a hash is persisted.
+- **Outbound inspection:** provider key formats (AWS, GitHub, Google, Slack, Stripe), JWTs, private keys,
+  connection strings, card numbers (Luhn + network prefix), Aadhaar (Verhoeff checksum) and PAN, entropy
+  with a word-likeness check, and bounded base64/hex/URL decoding. Only high-severity findings force approval.
+- **Human approvals:** bound to a fingerprint of the exact request, single use, expiring.
+- **Audit trail:** SHA-256 hash chain, restored from Postgres/Supabase when configured.
+- **Policy as code:** the Rego policy and the Python policy are kept in parity by a test that compares
+  their decisions over a grid of requests (it found a real gap at risk 60–69).
+- **Hardening:** operator roles (admin/reviewer/viewer), constant-time key comparison, fail-closed
+  production auth, rate limiting, security headers, OPA fail-closed when unreachable.
+- **Rollout:** `AGENTGUARD_FLOW_MODE=monitor` records what the flow rules *would* do without changing
+  decisions.
+- **Several workers:** labels in Redis with compare-and-set and expiry that blocks; the audit chain stays
+  linear through a database-enforced sequence number. If the label store fails, requests are blocked, an
+  allow whose taint cannot be recorded is withdrawn, and tool output that cannot be labelled is withheld.
+
+Smaller pieces are deliberately simple: the anomaly module is a z-score on a caller-supplied call rate and
+is not part of the decision path.
 
 ## Run locally
-
-### Backend
 
 ```bash
 cd backend
 python -m pip install -e ".[test]"
-uvicorn app.main:app --reload --port 8000
+uvicorn app.main:app --reload --port 8000     # API docs at http://localhost:8000/docs
+python -m pytest -q                            # tests
+python -m benchmarks.run                       # benchmark report
 ```
-
-### Frontend
 
 ```bash
-cd frontend
-npm install
-npm run dev
+cd frontend && npm install && npm run dev      # console; set NEXT_PUBLIC_API_URL if not localhost:8000/api/v1
 ```
 
-Set `NEXT_PUBLIC_API_URL` to the API base URL if it is not `http://localhost:8000/api/v1`.
+`docker compose up --build` starts the API and passes `SUPABASE_URL` / `SUPABASE_SERVICE_KEY` through.
+Apply the migrations in `supabase/migrations/` before setting `AGENTGUARD_ENV=production`.
 
-### API container with Supabase configuration
+## API surface (`/api/v1`)
 
-```bash
-docker compose up --build
-```
+| Area | Endpoint | Purpose |
+|---|---|---|
+| Health | `GET /health`, `GET /health/ready` | Liveness; dependency and audit-integrity readiness |
+| Agents | `POST /agents`, `GET /agents`, `POST /agents/{id}/suspend`, `POST /agents/{id}/revoke` | Identity lifecycle |
+| Decisions | `POST /decisions`, `POST /gateway/authorize` | Authorization without execution |
+| Tools | `POST /tools/execute`, `POST /mcp/call` | Authorize, execute, label the output |
+| Flow | `POST /flow/sessions`, `GET /flow/sessions/{id}`, `POST /flow/sessions/{id}/close` | Session labels |
+| Flow | `GET/POST /flow/manifests`, `GET/POST /flow/destinations`, `GET /flow/status` | Tool capabilities, destination audiences |
+| Flow | `POST /flow/check-output` | Neutralise leaking URLs in a model reply before rendering |
+| Vault | `POST /vault/secrets`, `GET /vault/secrets`, `POST /vault/secrets/{name}/revoke` | Injected credentials (values never returned) |
+| Security | `POST /security/inspect`, `POST /security/risk`, `POST /security/credentials`, `POST /security/credentials/{id}/revoke` | Inspection, risk, credentials |
+| Approvals | `/approvals/*` | Human approval workflow |
+| Delegation | `/delegations/*` | Agent-to-agent scopes |
+| Audit | `GET /gateway/audit` | Hash-chained event stream |
+| Simulator | `/simulator/*` | Synthetic attack scenarios |
+| Control plane | `GET /control-plane/snapshot` | Dashboard metrics |
 
-The Compose stack starts the FastAPI service and passes `SUPABASE_URL` and
-`SUPABASE_SERVICE_KEY` through from the shell environment. It does not start a
-generic PostgreSQL container because the application persistence adapter uses the
-Supabase HTTP API, not a raw PostgreSQL connection. Apply the migrations explicitly
-to the configured Supabase project before setting `AGENTGUARD_ENV=production`.
+## Configuration
 
-## Production configuration
+- `AGENTGUARD_ENV`: `production` turns on fail-closed authentication.
+- `AGENTGUARD_API_KEY` / `AGENTGUARD_OPERATORS` (`key:admin|reviewer|viewer,…`): operator credentials.
+  Flow sessions, manifests and destinations need `admin`.
+- `AGENTGUARD_FLOW_MODE`: `enforce` (default), `monitor` or `off`.
+- `AGENTGUARD_FLOW_REDIS_URL`: share session labels between workers (e.g. `redis://localhost:6379/0`);
+  without it labels live in process memory. `AGENTGUARD_FLOW_SESSION_TTL`: operator session lifetime in
+  seconds (default 86400); an expired session is blocked.
+- `AGENTGUARD_OPA_URL`: optional OPA server; unreachable means blocked.
+- `AGENTGUARD_CORS_ORIGINS`, `AGENTGUARD_RATE_LIMIT`, `AGENTGUARD_RATE_LIMIT_WINDOW`, `AGENTGUARD_POLICY_VERSION`.
+- `SUPABASE_URL`, `SUPABASE_SERVICE_KEY`: server-side only.
 
-Environment variables:
+## Limitations
 
-- `AGENTGUARD_ENV` — deployment environment. Set to `production` for production deployments.
-- `AGENTGUARD_CORS_ORIGINS` — comma-separated frontend origins; do not use `*` with credentialed browser access.
-- `AGENTGUARD_API_KEY` — API boundary key. It is required for protected routes in production and supports `X-API-Key` or `Authorization: Bearer ...`.
-- `AGENTGUARD_OPERATORS` — optional comma-separated `key:role` entries for `admin`, `reviewer`, or `viewer` operators. The legacy `AGENTGUARD_API_KEY`, when present, remains an `admin` key.
-- `AGENTGUARD_RATE_LIMIT` — maximum protected requests per client/path during the configured window; defaults to `120`.
-- `AGENTGUARD_RATE_LIMIT_WINDOW` — rate-limit window in seconds; defaults to `60`.
-- `AGENTGUARD_POLICY_VERSION` — policy version stamped into audit events.
-- `SUPABASE_URL` — server-side Supabase project URL.
-- `SUPABASE_SERVICE_KEY` — server-side secret key; never expose it to the frontend or commit it to source control.
-
-Never put real provider tokens into source control. The credential broker returns an opaque token only at issuance and the production schema stores only a token hash.
-
-Role enforcement is centralized at the API boundary: viewers can read, reviewers can
-also decide approvals, and admins can perform all control-plane mutations. Production
-requires at least one configured operator credential.
-
-## Verification
-
-The backend test suite covers the core security invariants, including:
-
-- unknown/suspended agents
-- least-privilege credential issuance
-- runtime decision enforcement
-- approval lifecycle
-- API-key authentication and CORS preflight
-- production fail-closed behavior
-- request rate limiting
-- tamper-evident audit chaining and persisted-chain recovery
-- HTTP MCP credential enforcement
-- tool execution failure auditing
-
-CI must be green before considering a change complete.
+Listed with proposed fixes in [`docs/findings-log.md`](docs/findings-log.md#open-issues). The main ones:
+fingerprints and secret pieces are indexed per worker; if Redis loses data, default labels come back clean;
+vault values live in process memory (production should use a KMS).
 
 ## Repository layout
 
 ```text
-agentguard/
-├── frontend/                 # Next.js security console
-├── backend/
-│   ├── app/                  # FastAPI control plane + enforcement
-│   └── tests/                # security and API regression tests
-├── policy/opa/               # Rego policy + tests
-├── supabase/migrations/      # durable PostgreSQL/Supabase schema
-├── .github/workflows/        # backend + frontend CI
-├── Dockerfile
-├── docker-compose.yml
-└── README.md
+backend/
+  app/flow/        labels, session stores (memory, Redis), fingerprints, secret pieces, output check, rules
+  app/             gateway, policy, inspector, credentials, approvals, audit, API
+  benchmarks/      attack/benign traces, labelled corpus, latency, report generator
+  examples/        self-checking demo, attack playground, Gemini agent, HTML report
+  tests/           unit, API, fuzzing, concurrency, Redis, trace-replay and policy-parity tests
+policy/opa/        Rego policy + tests
+supabase/          migrations (RLS, audit integrity columns)
+docs/              decisions (ADRs), findings log, benchmarks, flow-control guide
+frontend/          Next.js console
 ```
-
-## Operational integrations still outside the core runtime
-
-The deterministic enforcement core is complete without an AI/ML/LLM dependency. Production environments may still add infrastructure-specific integrations such as authenticated operator sessions with Supabase Auth/RLS, Redis Streams or another distributed event transport, OpenTelemetry/Prometheus, external KMS/HSM-backed provider credentials, deployment-specific secret management, and infrastructure-level distributed rate limiting. Those concerns belong at the deployment boundary rather than inside the authorization logic.
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for the branch and PR workflow, [SECURITY.md](SECURITY.md) for reporting vulnerabilities, and run `make help` for common development commands.
+See [CONTRIBUTING.md](CONTRIBUTING.md), [SECURITY.md](SECURITY.md), and `make help`.
 
 ## License
 

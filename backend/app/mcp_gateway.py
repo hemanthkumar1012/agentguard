@@ -20,6 +20,7 @@ class MCPToolRequest:
     risk_score: float = 0
     correlation_id: str | None = None
     approval_id: str | None = None
+    session_id: str | None = None
 
 
 class MCPGateway:
@@ -29,28 +30,28 @@ class MCPGateway:
         self.runtime = runtime
 
     def call(self, request: MCPToolRequest) -> dict:
-        decision = tool_gateway.authorize(
-            ActionRequest(
-                agent_id=request.agent_id,
-                action=request.action,
-                target=request.target,
-                data_classification=request.data_classification,
-                risk_score=request.risk_score,
-                content=request.content,
-                tool=request.tool,
-                credential_id=request.credential_id,
-                credential_token=request.credential_token,
-                correlation_id=request.correlation_id,
-                approval_id=request.approval_id,
-                execution_payload=request.arguments,
-            ),
-            consume_approval=True,
+        action_request = ActionRequest(
+            agent_id=request.agent_id,
+            action=request.action,
+            target=request.target,
+            data_classification=request.data_classification,
+            risk_score=request.risk_score,
+            content=request.content,
+            tool=request.tool,
+            credential_id=request.credential_id,
+            credential_token=request.credential_token,
+            correlation_id=request.correlation_id,
+            approval_id=request.approval_id,
+            session_id=request.session_id,
+            execution_payload=request.arguments,
         )
+        decision = tool_gateway.authorize(action_request, consume_approval=True)
         if decision.decision.decision != Decision.ALLOW:
             return {"executed": False, "decision": decision.decision.model_dump(mode="json"), "event_id": decision.event_id}
 
         try:
-            result = self.runtime.execute(request.agent_id, request.tool, request.action, request.arguments)
+            result = self.runtime.execute(request.agent_id, request.tool, request.action,
+                                          tool_gateway.prepare_execution(action_request))
         except KeyError:
             self._record_execution_error(request, decision.decision.risk_score, "Requested tool handler is not registered.")
             raise
@@ -58,11 +59,17 @@ class MCPGateway:
             self._record_execution_error(request, decision.decision.risk_score, "Authorized tool execution failed.")
             raise RuntimeError("Tool execution failed") from exc
 
+        try:
+            tool_output, learned = tool_gateway.finish_execution(action_request, decision.event_id, result.output)
+        except FlowStateUnavailable as exc:
+            self._record_execution_error(request, decision.decision.risk_score, "Tool output withheld: session label unavailable.")
+            raise RuntimeError("Tool output withheld: session labels unavailable") from exc
         return {
             "executed": True,
             "decision": decision.decision.model_dump(mode="json"),
             "event_id": decision.event_id,
-            "result": result.output,
+            "result": tool_output,
+            "flow": learned,
         }
 
     @staticmethod
