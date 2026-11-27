@@ -6,8 +6,12 @@ start a clean session for themselves or relabel a tool.
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field, field_validator
 
+from app.config import settings
+from app.domain import Decision
 from app.flow.labels import Capability, DEFAULT_PRIVATE_READERS, ToolManifest
-from app.services import agent_registry, flow_engine
+from app.flow.output import check_output
+from app.flow.session import FlowStateUnavailable
+from app.services import agent_registry, audit_ledger, flow_engine
 
 router = APIRouter(prefix="/flow", tags=["flow"])
 
@@ -38,6 +42,12 @@ class ManifestUpsert(BaseModel):
     @classmethod
     def _valid_readers(cls, value: list[str]) -> list[str]:
         return _check_principals(value)
+
+
+class OutputCheckRequest(BaseModel):
+    agent_id: str = Field(min_length=1, max_length=100)
+    session_id: str | None = Field(default=None, min_length=1, max_length=100)
+    text: str = Field(max_length=200_000)
 
 
 class DestinationUpsert(BaseModel):
@@ -119,3 +129,33 @@ def list_destinations():
 def upsert_destination(body: DestinationUpsert):
     rule = flow_engine.destinations.register(body.pattern, set(body.audience))
     return {"pattern": rule.pattern, "audience": sorted(rule.audience)}
+
+
+@router.post("/check-output")
+def check_rendered_output(body: OutputCheckRequest):
+    """Call before rendering a model reply. Returns the text with leaking URLs neutralised."""
+    if agent_registry.get(body.agent_id) is None:
+        raise HTTPException(status_code=404, detail="Agent not found")
+    try:
+        result = check_output(flow_engine, body.agent_id, body.session_id, body.text)
+    except FlowStateUnavailable as exc:
+        raise HTTPException(status_code=503, detail="Session labels unavailable; do not render this output") from exc
+    if result is None:
+        raise HTTPException(status_code=409, detail="Session does not exist, is closed, or belongs to another agent")
+    event_id = None
+    if result.sanitised:
+        event = audit_ledger.append(
+            agent_id=body.agent_id, action="render_output", target=", ".join(sorted({r.host for r in result.removed})),
+            decision=Decision.BLOCK.value, risk_score=100, reason=f"Removed {len(result.removed)} URL(s) that could leak data.",
+            risk_factors=["rendered-url-egress"], data_findings=[f"lineage:{e['source_event_id']}" for r in result.removed for e in r.lineage],
+            policy_version=settings.policy_version, event_type="output.check",
+        )
+        event_id = event.event_id
+    return {
+        "text": result.text,
+        "sanitised": result.sanitised,
+        "urls_checked": result.urls_checked,
+        "removed": [{"url": r.url, "kind": r.kind, "host": r.host, "reason": r.reason, "lineage": r.lineage}
+                    for r in result.removed],
+        "event_id": event_id,
+    }

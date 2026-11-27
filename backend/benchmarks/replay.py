@@ -9,6 +9,7 @@ from app.domain import ActionRequest, Decision
 from app.flow.engine import FlowEngine
 from app.flow.fingerprints import FingerprintIndex
 from app.flow.labels import DestinationRegistry, ManifestRegistry
+from app.flow.output import check_output
 from app.flow.engine import default_manifests
 from app.gateway import ToolGateway
 from app.identity import AgentRegistry
@@ -66,6 +67,14 @@ def replay(trace: Trace, config: str, sessions=None) -> list[StepResult]:
     for step in trace.steps:
         if step.session not in sessions:
             sessions[step.session] = flow.sessions.create(agent_id, step.session).session_id if flow else None
+        if step.action == "render_output":
+            # The client renders the model's reply. Without the output check nothing looks at it.
+            checked = check_output(flow, agent_id, sessions[step.session], step.payload["text"]) if flow else None
+            removed = bool(checked and checked.removed)
+            results.append(StepResult(step.tool, step.action, step.session,
+                                      Decision.BLOCK if removed else Decision.ALLOW, "O1" if removed else None,
+                                      checked.removed[0].reason if removed else "rendered unchanged", step.exit))
+            continue
         request = ActionRequest(
             agent_id=agent_id, tool=step.tool, action=step.action, target=step.target or step.tool,
             data_classification="public", risk_score=0,       # the agent claims the most convenient labels
