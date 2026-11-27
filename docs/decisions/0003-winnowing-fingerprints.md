@@ -40,8 +40,8 @@ Tuning:
 ## Consequences
 
 - Catches verbatim, reformatted and encoded copies across sessions (`leak-from-memory-in-a-new-session`
-  is stopped only by this layer). Cannot catch paraphrases or pieces shorter than 15 characters
-  (`split-exfiltration-from-a-clean-session` is a known gap).
+  is stopped only by this layer). Cannot catch paraphrases (the label rules do) or pieces shorter than 15
+  characters (rule F5 tracks those for secret-like values, see 0006).
 - A power-of-two modulus makes deliberate hash collisions easy to build. A collision can only create a
   false match, never hide a leak, so this was accepted for speed.
 - Performance: the pure-Python version cost 6.9 ms p50 for a 10 KB body (90% of decision time). The

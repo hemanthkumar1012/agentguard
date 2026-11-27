@@ -5,6 +5,15 @@ Newest first.
 
 | Date | Finding | How it was found | Fix | Test |
 |---|---|---|---|---|
+| 2026-11-27 | **The piece tracker tripled decision time.** Adding F5 took a 10 KB decision from 3.4 ms to 10.8 ms p50: blake2b on every 4-character piece, once per destination, even for agents with no tracked secrets; and the same text was decoded three times. | Benchmark regression after F5 | Skip when nothing is tracked, one numpy keyed hash per request, cached decoding. 4.1 ms p50 with 20 secrets tracked. The benchmark now clears the cache per run so it cannot flatter itself. | `docs/benchmarks.md` latency table |
+| 2026-11-27 | **The first output check removed every public link** from replies in a tainted session, including plain documentation links. | Benign trace `reply-with-internal-and-public-links` | Images (fetched with zero clicks) are removed; links only when they carry data evidence or are shaped to carry data (query, fragment, long path) | `test_plain_public_links_stay_but_data_shaped_links_go_in_a_tainted_session` |
+| 2026-11-27 | **EchoLeak's own path was invisible.** The data left through a markdown image the client rendered, not through a tool call. | Listed as an open issue in the first round | `POST /flow/check-output` treats every URL in a reply as egress and neutralises leaking ones (rule O1) | trace `echoleak-markdown-image-in-the-reply`, `tests/test_output_check.py` |
+| 2026-11-27 | **A secret sent in pieces got through.** Pieces under the 15-character winnowing guarantee, from a clean session, passed every layer. With 6-character q-grams only 39% of a 23-character token was visible after cutting it into 8-character pieces. | Known gap in the first benchmark | Rule F5: 4-character pieces of short secret-like values, added up per destination domain over 24 hours (65% visible) | traces `split-exfiltration-*`, `tests/test_pieces.py` |
+| 2026-11-27 | **Optimistic retries starved.** With 8 writers on one session, the Redis compare-and-set retried 16 times without waiting and a writer gave up (fail closed, but under ordinary load). | Race test `test_concurrent_writers_never_lose_a_taint` | Jittered exponential backoff, 40 attempts. Removing the version check makes the same test lose taints, so it also guards the CAS itself. | `test_concurrent_writers_never_lose_a_taint` |
+| 2026-11-27 | **Labels lived in one process.** A second worker or a restart saw an unknown or clean label for a session that had read private data and untrusted content: the flow rules failed open. | Open issue from the first round | Redis store with Lua compare-and-set; expired sessions are blocked; any store error blocks; output that cannot be labelled is withheld | `tests/test_redis_sessions.py` (real Redis in CI) |
+| 2026-11-27 | **The audit chain forked with two workers**, on the very first pair of writes and without any concurrency: each worker took the previous hash from its own memory. A restarted worker then reported the audit trail as tampered. | Reproduced with two ledgers sharing one store | Sequence number kept unique by the store (migration 0004); the losing writer catches up and retries; repeated losses fail closed | `tests/test_audit_concurrency.py` |
+| 2026-11-27 | **A test cleanup broke the shared audit chain.** `test_control_plane` removed the oldest event from the shared ledger, so `/health/ready` failed for every later test. | CI, through the new readiness assertion | Tests no longer edit the append-only ledger | `test_status_reports_the_mode_and_label_store` |
+| 2026-11-27 | **The fuzzer itself had blind spots.** Of 6 bugs planted in the flow engine it caught 4: it never generated look-alike domains (`acme.com.evil.io`) and its traces were too short to trigger label compaction. | Mutation testing of the fuzzer | Look-alike domains added; label size shrunk inside the fuzzer so compaction happens. 6/6 caught; 70,000 random steps, no violations | `tests/test_flow_fuzz.py` |
 | 2026-11-27 | **The agent set its own risk.** `risk_score` and `data_classification` came from the agent. An agent that had just read a customer record could send `risk_score: 0, data_classification: "public"` and export the record: **allowed**, risk 20. | Asking "who sets this field?" about every input to the decision | Session labels worked out by AgentGuard from the tools it runs (rules F1/F2). Declared values can still raise the score, never lower it. | `test_self_reported_labels_no_longer_hide_an_exfiltration`, trace `self-declared-public-export` |
 | 2026-11-27 | **Encoded secrets were invisible.** A base64-encoded `password: …` plus a card number passed the inspector. The request needed approval only because the recipient's own email address was a finding. | Manual probe while reviewing the inspector | Bounded base64/hex/URL decoding (64 tokens, 200k characters, 2 layers), then scan again | `test_encoded_secrets_are_found_after_decoding` |
 | 2026-11-27 | **Every email needed a human.** The recipient address counted as a sensitive finding, so every `send_email` needed approval: the old engine asked for approval on 5 of 7 benign traces. Approvals that fire on everything get approved without being read. | Benign trace replays | Severities: email and phone numbers are recorded, but only high-severity findings force approval | `test_email_and_phone_are_recorded_but_do_not_block`, benign traces |
@@ -20,15 +29,19 @@ Newest first.
 
 ## Open issues
 
-- **Labels live in process memory.** A restart or a second worker starts with clean labels, which fails
-  open for sessions in progress. Production needs labels in shared storage (Redis with a TTL); a missing
-  label for a known session should then block, not start clean.
-- **The audit hash chain can fork with several workers.** Each process keeps the last hash in memory, so two
-  workers can append events with the same `previous_hash`. Proposed fix: a unique index on `previous_hash`
-  in Postgres and a retry on conflict, so a fork becomes a write error instead of silent corruption.
+- **The agent still holds raw credentials.** An API key read from a vault and sent to its own provider
+  needs approval, because the inspector sees a secret leaving (trace `api-key-used-with-its-own-provider`).
+  The right fix is for the gateway to inject the credential into the outgoing call, so the key never
+  enters the agent's context; AgentGuard already has a credential broker to build on.
+- **Evidence layers are per process.** Fingerprints and secret pieces are indexed in each worker's memory,
+  so cross-session evidence (F3, F5) only works when the same worker saw the data. Labels (F1, F2, F4) are
+  shared through Redis.
+- **Redis data loss resets default labels.** An expired operator session is blocked, but if Redis loses
+  data, default sessions come back clean. Run Redis with persistence (AOF).
+- **History before migration 0004.** Events written by several workers before the sequence number existed
+  may already be forked; verification reports that history.
 - **Label creep.** After reading two customers' records the session may only talk to people allowed to read
   both (trace `merge-duplicate-customer-accounts` is blocked). The fix is to split work into sessions.
-- **Split exfiltration from a clean session.** Pieces shorter than the 15-character winnowing guarantee pass
-  every layer (trace `split-exfiltration-from-a-clean-session`).
-- **Rendering outside the gateway.** AgentGuard sees tool calls. If a chat client renders a markdown image
-  whose URL carries data (the original EchoLeak path), the leak happens in the browser, not through a tool.
+- **Very small pieces and short link paths.** Secrets sent 3 characters at a time pass F5 (trace
+  `split-into-3-character-pieces`), and data spread over short path segments of a plain link can pass the
+  output check.

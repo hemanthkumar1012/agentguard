@@ -57,7 +57,28 @@ ends: `POST /flow/sessions/{id}/close`. Inspect it at any time: `GET /flow/sessi
 }
 ```
 
-## 5. Rolling out
+## 5. Check replies before rendering them
+
+The model's reply can leak too: a markdown image is fetched by the client with zero clicks (EchoLeak).
+Pass every reply through the output check before showing it:
+
+```bash
+curl -X POST $API/flow/check-output ... -d '{"agent_id": "agt_…", "session_id": "ses_…", "text": "<model reply>"}'
+# → {"text": "<reply with leaking URLs replaced by #agentguard-removed>", "sanitised": true,
+#    "removed": [{"url": "…", "kind": "image", "host": "…", "reason": "…", "lineage": […]}], "event_id": "evt_…"}
+```
+
+Render the returned `text`, never the original. A `409` (unknown session) or `503` (label store down)
+means: do not render.
+
+## 6. Several workers
+
+Set `AGENTGUARD_FLOW_REDIS_URL=redis://host:6379/0` so all workers share labels, and run Redis with
+persistence (AOF). Operator sessions expire after `AGENTGUARD_FLOW_SESSION_TTL` seconds without writes and
+are then blocked. `GET /health/ready` reports `flow_labels: ok | failed | process_memory`.
+Apply `supabase/migrations/0004_audit_chain_sequence.sql` so several workers keep one audit chain.
+
+## 7. Rolling out
 
 Set `AGENTGUARD_FLOW_MODE=monitor` first. Decisions do not change, but every request that *would* have
 been stopped gets a `flow-would-block` or `flow-would-require_approval` risk factor in the audit trail.
