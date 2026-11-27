@@ -6,6 +6,16 @@ from typing import Any
 
 from supabase import Client, create_client
 
+from app.audit import ChainConflict
+
+
+def _is_unique_violation(exc: Exception) -> bool:
+    """PostgREST reports Postgres errors with their SQLSTATE; 23505 is unique_violation."""
+    code = getattr(exc, "code", None)
+    if code is None and exc.args and isinstance(exc.args[0], dict):
+        code = exc.args[0].get("code")
+    return str(code) == "23505"
+
 
 class SupabaseStore:
     """Server-side persistence adapter using the Supabase service key."""
@@ -130,16 +140,31 @@ class SupabaseStore:
             "consumed_at": approval.consumed_at.isoformat() if approval.consumed_at else None,
         }).eq("approval_id", approval.approval_id).execute()
 
+    # Chain order is the sequence number, not created_at: clocks on different workers disagree.
+    _EVENT_COLUMNS = ("event_id,agent_id,action,target,decision,risk_score,reason,risk_factors,data_findings,tool,"
+                      "credential_id,correlation_id,policy_version,event_type,created_at,previous_hash,event_hash,seq")
+
     def get_last_event_hash(self) -> str | None:
-        rows = self.client.table("security_events").select("event_hash").order("created_at", desc=True).limit(1).execute().data or []
+        rows = self.client.table("security_events").select("event_hash").order("seq", desc=True).limit(1).execute().data or []
         return rows[0].get("event_hash") if rows else None
 
     def list_security_events(self) -> list[dict[str, Any]]:
-        return self.client.table("security_events").select(
-            "event_id,agent_id,action,target,decision,risk_score,reason,risk_factors,data_findings,tool,credential_id,correlation_id,policy_version,event_type,created_at,previous_hash,event_hash"
-        ).order("created_at", desc=False).execute().data or []
+        return self.client.table("security_events").select(self._EVENT_COLUMNS).order("seq", desc=False).execute().data or []
+
+    def list_security_events_after(self, seq: int) -> list[dict[str, Any]]:
+        return self.client.table("security_events").select(self._EVENT_COLUMNS).gt("seq", seq).order(
+            "seq", desc=False).execute().data or []
 
     def insert_security_event(self, event: Any) -> None:
+        try:
+            self._insert_security_event(event)
+        except Exception as exc:
+            if _is_unique_violation(exc):
+                # Another writer took this sequence number (unique index, migration 0004).
+                raise ChainConflict(str(exc)) from exc
+            raise
+
+    def _insert_security_event(self, event: Any) -> None:
         self.client.table("security_events").insert({
             "event_id": event.event_id, "event_type": event.event_type, "agent_id": event.agent_id,
             "action": event.action, "target": event.target, "tool": event.tool,
@@ -148,7 +173,7 @@ class SupabaseStore:
             "risk_factors": list(event.risk_factors), "data_findings": list(event.data_findings),
             "reason": event.reason, "policy_version": event.policy_version,
             "created_at": event.created_at.isoformat(), "previous_hash": event.previous_hash,
-            "event_hash": event.event_hash,
+            "event_hash": event.event_hash, "seq": event.sequence,
         }).execute()
 
     def healthcheck(self) -> bool:
