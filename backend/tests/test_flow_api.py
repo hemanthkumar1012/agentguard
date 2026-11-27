@@ -77,5 +77,8 @@ def test_status_reports_the_mode_and_label_store():
     status = client.get("/api/v1/flow/status").json()
     assert status["mode"] in {"enforce", "monitor", "off"}
     assert status["label_store"] == "MemorySessionStore"
-    ready = client.get("/api/v1/health/ready").json()
-    assert ready["checks"]["flow_labels"] == "process_memory"
+    # Readiness can be 503 for unrelated reasons in the shared test process (another test removes an audit
+    # event during cleanup), so read the label-store check from either response shape.
+    body = client.get("/api/v1/health/ready").json()
+    checks = body.get("checks") or body["detail"]["checks"]
+    assert checks["flow_labels"] == "process_memory"

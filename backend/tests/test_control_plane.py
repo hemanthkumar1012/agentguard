@@ -28,4 +28,4 @@ def test_control_plane_snapshot_reports_security_metrics():
     assert body["recent_events"][0]["agent_id"] == agent.agent_id
 
     agent_registry._agents.pop(agent.agent_id, None)
-    audit_ledger._events.pop(0)
+    # No audit cleanup: removing an event from the append-only chain broke /health/ready for later tests.
