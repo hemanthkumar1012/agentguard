@@ -5,6 +5,9 @@ Newest first.
 
 | Date | Finding | How it was found | Fix | Test |
 |---|---|---|---|---|
+| 2026-11-27 | **Label creep in the most natural workflow.** The first run of `make demo` failed its own checks: an order record declared internal-only made the ticket session unable to reply to the customer about her own order, post in the internal channel, or call Razorpay. | The demo states the expected outcome of every step and fails on a mismatch | Describe the data properly: an order names its owner (`readers_from`) and its payment processor; the refund runs in its own session. A lesson about manifests, not the engine | `test_the_scripted_demo_matches_every_expected_outcome` |
+| 2026-11-27 | **A secret handle looked like a secret.** The text `{{secret:razorpay}}` matched the inspector's `secret:` marker, so a correct, key-free call needed approval. | First credential-injection test | Handles are placeholders to the inspector | `test_the_inspector_does_not_mistake_a_handle_for_a_secret` |
+| 2026-11-27 | **Agents held raw API keys.** A key read from a vault sat in the agent's context, so an injection could send it anywhere, and every legitimate call needed approval. | Open issue from the second round | Credential injection: agents use `{{secret:name}}` handles; the gateway checks where each handle may go (rule S1), injects the value only at execution, and scrubs echoes from tool output | `tests/test_vault.py`, `tests/test_vault_api.py` |
 | 2026-11-27 | **The piece tracker tripled decision time.** Adding F5 took a 10 KB decision from 3.4 ms to 10.8 ms p50: blake2b on every 4-character piece, once per destination, even for agents with no tracked secrets; and the same text was decoded three times. | Benchmark regression after F5 | Skip when nothing is tracked, one numpy keyed hash per request, cached decoding. 4.1 ms p50 with 20 secrets tracked. The benchmark now clears the cache per run so it cannot flatter itself. | `docs/benchmarks.md` latency table |
 | 2026-11-27 | **The first output check removed every public link** from replies in a tainted session, including plain documentation links. | Benign trace `reply-with-internal-and-public-links` | Images (fetched with zero clicks) are removed; links only when they carry data evidence or are shaped to carry data (query, fragment, long path) | `test_plain_public_links_stay_but_data_shaped_links_go_in_a_tainted_session` |
 | 2026-11-27 | **EchoLeak's own path was invisible.** The data left through a markdown image the client rendered, not through a tool call. | Listed as an open issue in the first round | `POST /flow/check-output` treats every URL in a reply as egress and neutralises leaking ones (rule O1) | trace `echoleak-markdown-image-in-the-reply`, `tests/test_output_check.py` |
@@ -29,10 +32,11 @@ Newest first.
 
 ## Open issues
 
-- **The agent still holds raw credentials.** An API key read from a vault and sent to its own provider
-  needs approval, because the inspector sees a secret leaving (trace `api-key-used-with-its-own-provider`).
-  The right fix is for the gateway to inject the credential into the outgoing call, so the key never
-  enters the agent's context; AgentGuard already has a credential broker to build on.
+- **Vault values live in process memory.** Credential injection keeps keys out of the agent, but the vault
+  itself should load values from a KMS or secrets manager; output scrubbing catches whole-value copies and
+  their common encodings, not a key embedded inside a larger encoded blob.
+- **The live Gemini path is not tested in CI** (no API key there); the agent loop and the request format are
+  tested with a scripted model and a mocked transport.
 - **Evidence layers are per process.** Fingerprints and secret pieces are indexed in each worker's memory,
   so cross-session evidence (F3, F5) only works when the same worker saw the data. Labels (F1, F2, F4) are
   shared through Redis.

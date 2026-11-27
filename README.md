@@ -17,7 +17,13 @@ then sent data out. AgentGuard does not try to spot the injection. It tracks the
   the **lethal trifecta** while letting normal work (replying to a customer with their own order) through;
 - it adds up pieces of secrets sent over several requests, and checks the URLs in a model's reply before a
   client renders them (EchoLeak leaked through a rendered image, not a tool call);
+- agents never hold API keys: they use `{{secret:name}}` handles, and the gateway injects the key only for the
+  destinations that key is bound to;
 - labels are shared through Redis with compare-and-set, and every failure path blocks.
+
+**Try to break it:** `make demo` (17-step self-checking story with an HTML report), `make playground` (type
+your own leak attempts against a session that has read an injected ticket), `make gemini` (a real Gemini agent
+behind AgentGuard; `--offline` runs without a key).
 
 Labels are never taken from the agent. Before this design, the agent sent its own `risk_score` and
 `data_classification`. An agent that had read a customer record could declare "public, risk 0" and
@@ -31,9 +37,9 @@ From [`docs/benchmarks.md`](docs/benchmarks.md), regenerated with `make bench`; 
 |---|---|---|
 | Reconstructed published attacks stopped (GitHub MCP toxic flow, Supabase MCP token leak, two EchoLeak paths) | 0 / 4 | 4 / 4 |
 | All attack traces stopped (adds memory recall, paraphrase, self-declared labels, secrets in pieces) | 6 / 10 * | 9 / 10 |
-| Benign traces needing approval or blocked | 5 / 9 | 3 / 9 (two intended approvals, one known false block) |
+| Benign traces needing approval or blocked | 6 / 9 | 2 / 9 (one intended approval, one known false block) |
 | Secret detector on the labelled corpus: recall / false-positive rate | 0.082 / 0.452 | 1.000 / 0.000 † |
-| Decision latency p50, 1 KB / 10 KB outbound body (all rules, 20 secrets tracked) | 0.11 / 0.45 ms | 0.92 / 4.1 ms |
+| Decision latency p50, 1 KB / 10 KB outbound body (all rules, 20 secrets tracked) | 0.12 / 0.44 ms | 1.0 / 4.1 ms |
 
 \* The old engine "stopped" those six only because it asked for approval on every request containing an
 email address. † Synthetic corpus written alongside the detectors: useful for comparing versions, not a
@@ -45,6 +51,10 @@ session gets through, and a session that reads two customers' records can no lon
 
 ## How it is tested
 
+- **Exhaustive state exploration** (model checking): every reachable state of a small world (two sessions,
+  untrusted input, two customers, a secret, verbatim / base64 / split sends) is explored breadth first: 112
+  states, the last new one at depth 8, all 1,680 transitions checked for safety *and* permissiveness, so an
+  engine that blocks everything fails too. Six planted bugs, six caught.
 - **Model-based fuzzing** of the flow rules: random worlds and traces checked after every step by an
   independent oracle (no allowed leak, labels only grow, declared risk never matters, …). 70,000 random
   steps, no violations. The fuzzer was itself mutation-tested: it first caught 4 of 6 planted bugs, its
@@ -72,6 +82,7 @@ identity → permission → session → scoped credential → content inspection
 | F4 | untrusted content + high-impact state change (payment, delete) | human approval |
 | F5 | more than half of a secret's pieces have reached one destination domain, over any number of requests | block if untrusted, else approval |
 | O1 | a URL in a model reply could leak (`POST /flow/check-output`, called before rendering) | URL neutralised |
+| S1 | a `{{secret:name}}` handle is unknown, not allowed for this agent, or headed to a destination the secret is not bound to | block |
 
 Why each rule and severity, and what was rejected: [`docs/decisions/`](docs/decisions). Setup:
 [`docs/flow-control.md`](docs/flow-control.md).
@@ -126,6 +137,7 @@ Apply the migrations in `supabase/migrations/` before setting `AGENTGUARD_ENV=pr
 | Flow | `POST /flow/sessions`, `GET /flow/sessions/{id}`, `POST /flow/sessions/{id}/close` | Session labels |
 | Flow | `GET/POST /flow/manifests`, `GET/POST /flow/destinations`, `GET /flow/status` | Tool capabilities, destination audiences |
 | Flow | `POST /flow/check-output` | Neutralise leaking URLs in a model reply before rendering |
+| Vault | `POST /vault/secrets`, `GET /vault/secrets`, `POST /vault/secrets/{name}/revoke` | Injected credentials (values never returned) |
 | Security | `POST /security/inspect`, `POST /security/risk`, `POST /security/credentials`, `POST /security/credentials/{id}/revoke` | Inspection, risk, credentials |
 | Approvals | `/approvals/*` | Human approval workflow |
 | Delegation | `/delegations/*` | Agent-to-agent scopes |
@@ -149,8 +161,8 @@ Apply the migrations in `supabase/migrations/` before setting `AGENTGUARD_ENV=pr
 ## Limitations
 
 Listed with proposed fixes in [`docs/findings-log.md`](docs/findings-log.md#open-issues). The main ones:
-the agent still holds raw API keys (the gateway should inject them); fingerprints and secret pieces are
-indexed per worker; if Redis loses data, default labels come back clean.
+fingerprints and secret pieces are indexed per worker; if Redis loses data, default labels come back clean;
+vault values live in process memory (production should use a KMS).
 
 ## Repository layout
 
@@ -159,6 +171,7 @@ backend/
   app/flow/        labels, session stores (memory, Redis), fingerprints, secret pieces, output check, rules
   app/             gateway, policy, inspector, credentials, approvals, audit, API
   benchmarks/      attack/benign traces, labelled corpus, latency, report generator
+  examples/        self-checking demo, attack playground, Gemini agent, HTML report
   tests/           unit, API, fuzzing, concurrency, Redis, trace-replay and policy-parity tests
 policy/opa/        Rego policy + tests
 supabase/          migrations (RLS, audit integrity columns)

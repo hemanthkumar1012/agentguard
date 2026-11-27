@@ -84,3 +84,15 @@ Set `AGENTGUARD_FLOW_MODE=monitor` first. Decisions do not change, but every req
 been stopped gets a `flow-would-block` or `flow-would-require_approval` risk factor in the audit trail.
 Review those, fix manifests and destinations, then switch to `enforce` (the default). `off` disables the
 feature.
+
+## 8. Give agents handles, not keys
+
+```bash
+curl -X POST $API/vault/secrets ... -d '{"name": "razorpay", "value": "<the real key>",
+  "allowed_destinations": ["https://api.razorpay.com/*"], "allowed_agents": ["agt_…"]}'
+# → {"name": "razorpay", "handle": "{{secret:razorpay}}", "sha256_prefix": "…", …}   (the value is never returned)
+```
+
+The agent puts `{{secret:razorpay}}` where the key goes (for example `"Authorization": "Bearer {{secret:razorpay}}"`).
+A handle in a request to any other destination, or from another agent, is blocked (rule S1). The gateway
+replaces the handle only when it runs the tool, and scrubs the key out of the tool's output.
