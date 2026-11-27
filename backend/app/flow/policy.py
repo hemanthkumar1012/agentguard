@@ -10,6 +10,9 @@ F2  Private data, no untrusted content, destination outside the data's readers -
 F3  Fingerprint evidence. Private data AgentGuard saw earlier (in any of this agent's sessions)
     is inside the request and the destination may not read it -> block if the session is
     untrusted, otherwise approval. This catches leaks across sessions that F1/F2 cannot see.
+F5  A secret in pieces. More than half of the 4-character pieces of a secret-like value a private
+    tool returned have reached one destination domain, over one or more requests, and that
+    destination may not read it -> block if the session is untrusted, otherwise approval.
 F4  Untrusted content steering a state change. The session read untrusted content and the
     request is a high-impact state change -> human approval. The Rule of Two treats
     "untrusted input + change state" as acceptable; F4 exists because it is not when the
@@ -21,6 +24,7 @@ from dataclasses import dataclass, field
 
 from app.domain import Decision
 from app.flow.fingerprints import Match
+from app.flow.pieces import PieceMatch
 from app.flow.labels import Capability, ToolManifest, covers, flows_to
 from app.flow.session import SessionLabel
 
@@ -55,7 +59,7 @@ def _principals(values) -> str:
 
 
 def evaluate_flow(*, action: str, manifest: ToolManifest, label: SessionLabel, destination: str,
-                  audience: frozenset[str], matches: list[Match]) -> FlowVerdict:
+                  audience: frozenset[str], matches: list[Match], pieces: list[PieceMatch] | None = None) -> FlowVerdict:
     factors: list[str] = []
     if label.untrusted:
         factors.append("session-ingested-untrusted-content")
@@ -95,6 +99,19 @@ def evaluate_flow(*, action: str, manifest: ToolManifest, label: SessionLabel, d
                       f"({_principals(first.source.readers)}) do not include {destination}.")
         elif reason is not None:
             reason += f" Evidence: {evidence}."
+
+    split = [p for p in (pieces or []) if egress and not all(covers(p.secret.readers, a) for a in audience)]
+    if split:
+        lineage += [p.as_dict() for p in split]
+        factors.append("secret-pieces-reassembled")
+        first = split[0]
+        f5 = Decision.BLOCK if label.untrusted else Decision.REQUIRE_APPROVAL
+        if SEVERITY[f5] > SEVERITY[decision]:
+            decision, rule = f5, "F5"
+            reason = (f"{first.coverage:.0%} of a secret returned by {first.secret.tool}.{first.secret.action} "
+                      f"(event {first.secret.source_id}) has now reached {first.destination} over "
+                      f"{first.requests} request(s), and its readers ({_principals(first.secret.readers)}) "
+                      f"do not include that destination.")
 
     if (decision == Decision.ALLOW and label.untrusted and action in HIGH_IMPACT_ACTIONS
             and manifest.has(Capability.MUTATES)):

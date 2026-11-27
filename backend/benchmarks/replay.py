@@ -18,9 +18,17 @@ from benchmarks.traces import Trace
 CONFIGS = {
     "legacy": "before this change: old regex inspector, no data-flow rules",
     "inspector": "new inspector only (validators, decoding, severities), no data-flow rules",
-    "labels": "new inspector + session labels (rules F1, F2, F4), fingerprints off",
-    "full": "new inspector + session labels + fingerprints (all rules)",
+    "labels": "new inspector + session labels (rules F1, F2, F4); fingerprints and piece tracking off",
+    "full": "new inspector + session labels + fingerprints + piece tracking (all rules)",
 }
+
+
+class _NoPieces:
+    def add(self, **kwargs):
+        return False
+
+    def observe(self, *args):
+        return []
 
 
 @dataclass(frozen=True)
@@ -44,7 +52,8 @@ def _gateway(trace: Trace, config: str, sessions=None) -> tuple[ToolGateway, str
         for pattern, audience in trace.destinations:
             destinations.register(pattern, audience)
         index = FingerprintIndex(min_shared=10**9) if config == "labels" else FingerprintIndex()
-        flow = FlowEngine(manifests=manifests, destinations=destinations, index=index, sessions=sessions)
+        pieces = _NoPieces() if config == "labels" else None
+        flow = FlowEngine(manifests=manifests, destinations=destinations, index=index, sessions=sessions, pieces=pieces)
     inspector = (lambda c, p: legacy_inspector.inspect_outbound(c, p)) if config == "legacy" else inspect_outbound
     return ToolGateway(registry, AuditLedger(), flow=flow, inspector=inspector), agent.agent_id, flow
 

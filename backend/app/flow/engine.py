@@ -14,8 +14,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from app.data_inspector import inspect
 from app.domain import ActionRequest, Decision
 from app.flow.fingerprints import FingerprintIndex, flatten_strings
+from app.flow.pieces import MAX_SECRET_LENGTH, SecretPieceTracker
 from app.flow.labels import (
     INTERNAL,
     Capability,
@@ -53,18 +55,20 @@ class FlowContext:
     manifest: ToolManifest
     destination: str
     audience: frozenset[str]
+    destinations: tuple[str, ...] = ()
 
 
 class FlowEngine:
     def __init__(self, manifests: ManifestRegistry | None = None, destinations: DestinationRegistry | None = None,
-                 sessions: SessionStore | None = None, index: FingerprintIndex | None = None,
-                 mode: str = "enforce") -> None:
+                 sessions=None, index: FingerprintIndex | None = None,
+                 mode: str = "enforce", pieces: SecretPieceTracker | None = None) -> None:
         if mode not in MODES:
             raise ValueError(f"flow mode must be one of {sorted(MODES)}")
         self.manifests = manifests or ManifestRegistry(default_manifests())
         self.destinations = destinations or DestinationRegistry()
         self.sessions = sessions or MemorySessionStore()
         self.index = index or FingerprintIndex()
+        self.pieces = pieces or SecretPieceTracker()
         self.mode = mode
 
     @property
@@ -94,7 +98,8 @@ class FlowEngine:
         audience: frozenset[str] = frozenset()
         for destination in destinations:
             audience |= self.destinations.audience(destination)
-        return FlowContext(label=label, manifest=manifest, destination=", ".join(destinations), audience=audience)
+        return FlowContext(label=label, manifest=manifest, destination=", ".join(destinations), audience=audience,
+                           destinations=tuple(destinations))
 
     def check(self, request: ActionRequest) -> FlowVerdict:
         if not self.enabled:
@@ -104,7 +109,7 @@ class FlowEngine:
             verdict = FlowVerdict(decision=Decision.BLOCK, rule="F0", factors=["unknown-session"],
                                   reason="Session does not exist, is closed, or belongs to another agent.")
             return self._monitored(verdict)
-        matches = []
+        matches, pieces = [], []
         if ctx.manifest.has(Capability.EGRESS):
             outbound = "\n".join(
                 ([request.content] if request.content else [])
@@ -112,8 +117,10 @@ class FlowEngine:
                 + [request.target]
             )
             matches = self.index.match(request.agent_id, outbound)
+            for destination in ctx.destinations:
+                pieces += self.pieces.observe(request.agent_id, destination, outbound)
         verdict = evaluate_flow(action=request.action, manifest=ctx.manifest, label=ctx.label,
-                                destination=ctx.destination, audience=ctx.audience, matches=matches)
+                                destination=ctx.destination, audience=ctx.audience, matches=matches, pieces=pieces)
         if not ctx.manifest.known:
             verdict = FlowVerdict(verdict.decision, verdict.reason, verdict.rule,
                                   ["undescribed-tool-assumed-worst-case", *verdict.factors], verdict.lineage)
@@ -151,9 +158,17 @@ class FlowEngine:
             readers = self.sessions.widen_private_readers(ctx.label, event_id, frozenset(owners)) or readers
         source = self.index.add(agent_id=request.agent_id, session_id=ctx.label.session_id, source_id=event_id,
                                 tool=request.tool or "*", action=request.action, readers=readers, output=output)
+        secrets = 0
+        for value in flatten_strings(output):
+            # Short values the inspector rates high severity (keys, tokens, card numbers) are also
+            # tracked piece by piece, for leaks split across requests (rule F5).
+            if len(value) <= 2 * MAX_SECRET_LENGTH and inspect(value)["blocking"]:
+                secrets += self.pieces.add(agent_id=request.agent_id, source_id=event_id, tool=request.tool or "*",
+                                           action=request.action, readers=readers, value=value)
         return {
             "readers": sorted(readers),
             "fingerprints": source.fingerprint_count if source else 0,
+            "secrets_tracked_in_pieces": secrets,
             # Several owners in one output (a search over many customers) widen nothing: otherwise each
             # customer could be sent every other customer's row.
             "owners_ignored": len(owners) > 1,

@@ -27,6 +27,13 @@ def test_only_fingerprints_catch_data_recalled_into_a_fresh_session():
     assert outcome(trace, replay(trace, "full")) == "stopped"
 
 
+def test_only_piece_tracking_catches_a_secret_sent_in_pieces():
+    for name in ["split-exfiltration-from-a-clean-session", "split-exfiltration-across-addresses"]:
+        trace = next(t for t in ATTACKS if t.name == name)
+        assert outcome(trace, replay(trace, "labels")) == "missed"
+        assert outcome(trace, replay(trace, "full")) == "stopped"
+
+
 def test_only_labels_catch_a_paraphrase():
     trace = next(t for t in ATTACKS if t.name == "paraphrased-exfiltration")
     assert outcome(trace, replay(trace, "inspector")) == "missed"
@@ -34,10 +41,10 @@ def test_only_labels_catch_a_paraphrase():
 
 
 def test_benign_friction_budget():
-    # One intended approval (external accountant) and one known false block (label creep).
+    # Two intended approvals (external accountant, raw API key leaving) and one known false block (label creep).
     outcomes = [outcome(t, replay(t, "full")) for t in BENIGN]
     assert outcomes.count("blocked") <= 1
-    assert outcomes.count("approval") <= 1
+    assert outcomes.count("approval") <= 2
 
 
 def test_detector_quality_does_not_regress():
