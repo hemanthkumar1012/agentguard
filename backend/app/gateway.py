@@ -7,7 +7,8 @@ from app.config import settings
 from app.data_inspector import inspect_outbound
 from app.domain import ActionRequest, Decision, DecisionResponse
 from app.flow.engine import FlowEngine
-from app.flow.policy import SEVERITY
+from app.flow.policy import SEVERITY, FlowVerdict
+from app.flow.session import FlowStateUnavailable
 from app.identity import AgentRegistry, AgentStatus
 from app.opa_client import PolicyEngineUnavailable, decide as opa_decide
 from app.policy import evaluate
@@ -15,6 +16,7 @@ from app.risk import assess
 
 
 SENSITIVE_OUTBOUND_REASON = "Sensitive data was found in the outbound request, so a human must approve it."
+FLOW_STATE_UNAVAILABLE_REASON = "Session labels could not be read or written, so the request was blocked (fail closed)."
 
 Inspector = Callable[[str | None, dict | None], dict]
 
@@ -56,8 +58,12 @@ class ToolGateway:
             response = self._blocked(request, f"Agent identity is {agent.status.value} and cannot execute tools.")
         elif request.action not in agent.permissions:
             response = self._blocked(request, "Agent does not have permission for this action.")
-        elif self.flow is not None and not self.flow.session_valid(request):
-            response = self._blocked(request, "Session does not exist, is closed, or belongs to another agent.")
+        elif self.flow is not None and (session_state := self._session_state(request)) != "valid":
+            if session_state == "unavailable":
+                response = self._blocked(request, FLOW_STATE_UNAVAILABLE_REASON)
+                factors = ["flow-state-unavailable"]
+            else:
+                response = self._blocked(request, "Session does not exist, is closed, or belongs to another agent.")
             flow_rule = "F0"
         elif request.tool and self.credentials and (not request.credential_id or not request.credential_token):
             response = self._blocked(request, "Tool execution requires a scoped credential and token.")
@@ -72,7 +78,11 @@ class ToolGateway:
         else:
             response, factors, findings = self._evaluate(request, self.inspector)
             if self.flow is not None and response.decision != Decision.BLOCK:
-                verdict = self.flow.check(request)
+                try:
+                    verdict = self.flow.check(request)
+                except FlowStateUnavailable:
+                    verdict = FlowVerdict(decision=Decision.BLOCK, rule="F0", reason=FLOW_STATE_UNAVAILABLE_REASON,
+                                          factors=["flow-state-unavailable"])
                 factors = factors + verdict.factors
                 lineage = verdict.lineage
                 findings = findings + [f"lineage:{item['source_event_id']}" for item in lineage]
@@ -124,8 +134,28 @@ class ToolGateway:
             )
             response = response.model_copy(update={"approval_id": approval.approval_id})
         if response.decision == Decision.ALLOW and self.flow is not None:
-            self.flow.on_allowed(request, event.event_id)
+            try:
+                self.flow.on_allowed(request, event.event_id)
+            except FlowStateUnavailable:
+                # The taint could not be recorded. Letting the call through would leave the label clean
+                # while the agent receives the data, so the allow is withdrawn.
+                response = self._blocked(request, FLOW_STATE_UNAVAILABLE_REASON).model_copy(
+                    update={"risk_factors": [*factors, "flow-state-unavailable"], "flow_rule": "F0",
+                            "session_id": request.session_id})
+                event = self.audit.append(
+                    agent_id=request.agent_id, action=request.action, target=request.target,
+                    decision=Decision.BLOCK.value, risk_score=response.risk_score, reason=response.reason,
+                    risk_factors=response.risk_factors, tool=request.tool, credential_id=request.credential_id,
+                    correlation_id=request.correlation_id, policy_version=settings.policy_version,
+                    event_type="flow.label.error",
+                )
         return GatewayResult(decision=response, event_id=event.event_id)
+
+    def _session_state(self, request: ActionRequest) -> str:
+        try:
+            return "valid" if self.flow.session_valid(request) else "invalid"
+        except FlowStateUnavailable:
+            return "unavailable"
 
     def record_output(self, request: ActionRequest, event_id: str, output) -> dict:
         """Called after AgentGuard executed an allowed tool, with what the tool returned."""

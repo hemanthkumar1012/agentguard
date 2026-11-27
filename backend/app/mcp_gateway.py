@@ -58,7 +58,11 @@ class MCPGateway:
             self._record_execution_error(request, decision.decision.risk_score, "Authorized tool execution failed.")
             raise RuntimeError("Tool execution failed") from exc
 
-        learned = tool_gateway.record_output(action_request, decision.event_id, result.output)
+        try:
+            learned = tool_gateway.record_output(action_request, decision.event_id, result.output)
+        except FlowStateUnavailable as exc:
+            self._record_execution_error(request, decision.decision.risk_score, "Tool output withheld: session label unavailable.")
+            raise RuntimeError("Tool output withheld: session labels unavailable") from exc
         return {
             "executed": True,
             "decision": decision.decision.model_dump(mode="json"),

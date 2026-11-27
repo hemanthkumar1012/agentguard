@@ -34,7 +34,7 @@ class StepResult:
     exit: bool
 
 
-def _gateway(trace: Trace, config: str) -> tuple[ToolGateway, str, FlowEngine | None]:
+def _gateway(trace: Trace, config: str, sessions=None) -> tuple[ToolGateway, str, FlowEngine | None]:
     registry = AgentRegistry()
     agent = registry.register("bench", "bench", permissions={s.action for s in trace.steps})
     flow = None
@@ -44,13 +44,14 @@ def _gateway(trace: Trace, config: str) -> tuple[ToolGateway, str, FlowEngine | 
         for pattern, audience in trace.destinations:
             destinations.register(pattern, audience)
         index = FingerprintIndex(min_shared=10**9) if config == "labels" else FingerprintIndex()
-        flow = FlowEngine(manifests=manifests, destinations=destinations, index=index)
+        flow = FlowEngine(manifests=manifests, destinations=destinations, index=index, sessions=sessions)
     inspector = (lambda c, p: legacy_inspector.inspect_outbound(c, p)) if config == "legacy" else inspect_outbound
     return ToolGateway(registry, AuditLedger(), flow=flow, inspector=inspector), agent.agent_id, flow
 
 
-def replay(trace: Trace, config: str) -> list[StepResult]:
-    gateway, agent_id, flow = _gateway(trace, config)
+def replay(trace: Trace, config: str, sessions=None) -> list[StepResult]:
+    """`sessions` swaps in another label store (e.g. Redis) for the full and labels configurations."""
+    gateway, agent_id, flow = _gateway(trace, config, sessions)
     sessions: dict[str, str | None] = {}
     results: list[StepResult] = []
     for step in trace.steps:

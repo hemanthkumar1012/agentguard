@@ -24,7 +24,7 @@ from app.flow.labels import (
     ToolManifest,
 )
 from app.flow.policy import FlowVerdict, evaluate_flow
-from app.flow.session import LabelSource, SessionLabel, SessionStore
+from app.flow.session import LabelSource, MemorySessionStore, SessionLabel
 
 MODES = {"enforce", "monitor", "off"}
 
@@ -63,7 +63,7 @@ class FlowEngine:
             raise ValueError(f"flow mode must be one of {sorted(MODES)}")
         self.manifests = manifests or ManifestRegistry(default_manifests())
         self.destinations = destinations or DestinationRegistry()
-        self.sessions = sessions or SessionStore()
+        self.sessions = sessions or MemorySessionStore()
         self.index = index or FingerprintIndex()
         self.mode = mode
 

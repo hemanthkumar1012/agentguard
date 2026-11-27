@@ -15,5 +15,13 @@ agent_registry = AgentRegistry(store=persistence)
 audit_ledger = AuditLedger(store=persistence)
 credential_broker = CredentialBroker(store=persistence)
 approval_store = ApprovalStore(store=persistence)
-flow_engine = FlowEngine(mode=settings.flow_mode)
+def _session_store():
+    # Several workers or restarts need shared labels; otherwise a second worker sees a clean label.
+    if settings.flow_redis_url:
+        from app.flow.redis_store import RedisSessionStore
+        return RedisSessionStore.from_url(settings.flow_redis_url, ttl_seconds=settings.flow_session_ttl_seconds)
+    return None
+
+
+flow_engine = FlowEngine(mode=settings.flow_mode, sessions=_session_store())
 tool_gateway = ToolGateway(agent_registry, audit_ledger, credential_broker, approval_store, flow=flow_engine)

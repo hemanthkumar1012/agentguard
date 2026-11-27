@@ -8,6 +8,10 @@ A session starts clean. Each allowed tool call can add to its label:
 Labels only grow. An agent cannot clean its own label: sessions are created by an operator (or
 the orchestrator holding operator credentials), and a request without a session falls into the
 agent's long-lived default session rather than a fresh one.
+
+Two stores share the same label logic (the `apply_*` functions below):
+MemorySessionStore for one process, RedisSessionStore (app/flow/redis_store.py) for several
+workers and restarts.
 """
 from __future__ import annotations
 
@@ -22,12 +26,23 @@ from app.flow.labels import meet
 MAX_SOURCES_PER_LABEL = 100
 
 
+class FlowStateUnavailable(Exception):
+    """The label store could not be read or written. Callers must fail closed."""
+
+
 @dataclass(frozen=True)
 class LabelSource:
     event_id: str
     tool: str
     action: str
     readers: frozenset[str] = frozenset()
+
+    def to_dict(self) -> dict:
+        return {"event_id": self.event_id, "tool": self.tool, "action": self.action, "readers": sorted(self.readers)}
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "LabelSource":
+        return cls(data["event_id"], data["tool"], data["action"], frozenset(data.get("readers") or []))
 
 
 @dataclass
@@ -39,6 +54,7 @@ class SessionLabel:
     untrusted_sources: list[LabelSource] = field(default_factory=list)
     private_sources: list[LabelSource] = field(default_factory=list)
     closed: bool = False
+    version: int = 0          # bumped on every write; the Redis store uses it for compare-and-set
 
     @property
     def untrusted(self) -> bool:
@@ -67,24 +83,70 @@ class SessionLabel:
             "untrusted": self.untrusted,
             "holds_private": self.holds_private,
             "readers": None if readers is None else sorted(readers),
-            "untrusted_sources": [s.__dict__ | {"readers": sorted(s.readers)} for s in self.untrusted_sources],
-            "private_sources": [s.__dict__ | {"readers": sorted(s.readers)} for s in self.private_sources],
+            "untrusted_sources": [s.to_dict() for s in self.untrusted_sources],
+            "private_sources": [s.to_dict() for s in self.private_sources],
         }
+
+    def to_dict(self) -> dict:
+        return {**self.summary(), "version": self.version}
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "SessionLabel":
+        return cls(
+            session_id=data["session_id"],
+            agent_id=data["agent_id"],
+            purpose=data.get("purpose", ""),
+            created_at=datetime.fromisoformat(data["created_at"]),
+            untrusted_sources=[LabelSource.from_dict(s) for s in data.get("untrusted_sources", [])],
+            private_sources=[LabelSource.from_dict(s) for s in data.get("private_sources", [])],
+            closed=bool(data.get("closed")),
+            version=int(data.get("version", 0)),
+        )
 
 
 def default_session_id(agent_id: str) -> str:
     return f"default:{agent_id}"
 
 
-class SessionStore:
-    """In-memory session labels. A production deployment would keep these in Redis with a TTL."""
+def new_session_id() -> str:
+    return f"ses_{uuid4().hex[:16]}"
+
+
+# --- label logic shared by every store -------------------------------------------------------------
+
+def apply_untrusted(label: SessionLabel, source: LabelSource) -> None:
+    label.untrusted_sources.append(source)
+    if len(label.untrusted_sources) > MAX_SOURCES_PER_LABEL:
+        # One untrusted source is enough to mark the label; the rest are kept for display only.
+        del label.untrusted_sources[1:-MAX_SOURCES_PER_LABEL // 2]
+
+
+def apply_private(label: SessionLabel, source: LabelSource) -> None:
+    if len(label.private_sources) >= MAX_SOURCES_PER_LABEL:
+        # Fold the history into one entry carrying its meet, so the readers never widen.
+        label.private_sources = [LabelSource("compacted", "*", "earlier-reads", label.readers or frozenset())]
+    label.private_sources.append(source)
+
+
+def apply_widen(label: SessionLabel, event_id: str, extra: frozenset[str]) -> frozenset[str] | None:
+    """Adds readers named by the tool output itself (e.g. the customer a CRM row belongs to)."""
+    for index, source in enumerate(label.private_sources):
+        if source.event_id == event_id:
+            widened = source.readers | extra
+            label.private_sources[index] = LabelSource(source.event_id, source.tool, source.action, widened)
+            return widened
+    return None
+
+
+class MemorySessionStore:
+    """Labels in this process's memory: fine for one worker; lost on restart (see RedisSessionStore)."""
 
     def __init__(self) -> None:
         self._items: dict[str, SessionLabel] = {}
         self._lock = Lock()
 
     def create(self, agent_id: str, purpose: str = "") -> SessionLabel:
-        label = SessionLabel(session_id=f"ses_{uuid4().hex[:16]}", agent_id=agent_id, purpose=purpose)
+        label = SessionLabel(session_id=new_session_id(), agent_id=agent_id, purpose=purpose)
         with self._lock:
             self._items[label.session_id] = label
         return label
@@ -113,27 +175,18 @@ class SessionStore:
 
     def add_untrusted(self, label: SessionLabel, source: LabelSource) -> None:
         with self._lock:
-            label.untrusted_sources.append(source)
-            if len(label.untrusted_sources) > MAX_SOURCES_PER_LABEL:
-                # One untrusted source is enough to mark the label; the rest are kept for display only.
-                del label.untrusted_sources[1:-MAX_SOURCES_PER_LABEL // 2]
+            apply_untrusted(label, source)
 
     def add_private(self, label: SessionLabel, source: LabelSource) -> None:
         with self._lock:
-            if len(label.private_sources) >= MAX_SOURCES_PER_LABEL:
-                # Fold the history into one entry carrying its meet, so the readers never widen.
-                label.private_sources = [LabelSource("compacted", "*", "earlier-reads", label.readers or frozenset())]
-            label.private_sources.append(source)
+            apply_private(label, source)
 
     def widen_private_readers(self, label: SessionLabel, event_id: str, extra: frozenset[str]) -> frozenset[str] | None:
-        """Adds readers named by the tool output itself (e.g. the customer a CRM row belongs to)."""
         with self._lock:
-            for index, source in enumerate(label.private_sources):
-                if source.event_id == event_id:
-                    widened = source.readers | extra
-                    label.private_sources[index] = LabelSource(source.event_id, source.tool, source.action, widened)
-                    return widened
-        return None
+            return apply_widen(label, event_id, extra)
 
     def list(self) -> list[SessionLabel]:
         return list(self._items.values())
+
+
+SessionStore = MemorySessionStore  # the name used before there were two stores

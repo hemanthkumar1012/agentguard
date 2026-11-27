@@ -73,5 +73,9 @@ def test_label_is_built_from_tool_output_and_blocks_the_leak():
     agent_registry._agents.pop(agent.agent_id, None)
 
 
-def test_status_reports_the_mode():
-    assert client.get("/api/v1/flow/status").json()["mode"] in {"enforce", "monitor", "off"}
+def test_status_reports_the_mode_and_label_store():
+    status = client.get("/api/v1/flow/status").json()
+    assert status["mode"] in {"enforce", "monitor", "off"}
+    assert status["label_store"] == "MemorySessionStore"
+    ready = client.get("/api/v1/health/ready").json()
+    assert ready["checks"]["flow_labels"] == "process_memory"

@@ -3,6 +3,7 @@ from pydantic import BaseModel, Field
 
 from app.config import settings
 from app.domain import ActionRequest, Decision
+from app.flow.session import FlowStateUnavailable
 from app.services import audit_ledger, tool_gateway
 from app.tool_runtime import ToolRuntime, echo_tool
 from app.mcp_remote import register_configured_servers
@@ -78,7 +79,12 @@ def execute_tool(request: ToolExecutionRequest):
         raise HTTPException(status_code=502, detail="Tool execution failed") from exc
 
     # AgentGuard ran the tool, so it can label what came back (private data gets fingerprinted).
-    learned = tool_gateway.record_output(action_request, authorization.event_id, result.output)
+    try:
+        learned = tool_gateway.record_output(action_request, authorization.event_id, result.output)
+    except FlowStateUnavailable as exc:
+        # The tool ran, but its output could not be labelled; handing it over would leave the label clean.
+        record_execution_error(request, authorization.decision.risk_score, "Tool output withheld: session label unavailable.")
+        raise HTTPException(status_code=503, detail="Tool output withheld: session labels unavailable") from exc
     return {
         "executed": True,
         "decision": authorization.decision,

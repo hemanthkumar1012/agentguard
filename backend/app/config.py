@@ -19,6 +19,9 @@ class Settings(BaseModel):
     opa_url: str | None = os.getenv("AGENTGUARD_OPA_URL") or None
     # data-flow rules: enforce (default), monitor (record what would happen, change nothing) or off
     flow_mode: str = os.getenv("AGENTGUARD_FLOW_MODE", "enforce").strip().lower()
+    # shared session labels for several workers, e.g. redis://localhost:6379/0; empty = process memory
+    flow_redis_url: str | None = os.getenv("AGENTGUARD_FLOW_REDIS_URL") or None
+    flow_session_ttl_seconds: int = Field(default_factory=lambda: int(os.getenv("AGENTGUARD_FLOW_SESSION_TTL", "86400")), ge=60)
     rate_limit_requests: int = Field(default_factory=lambda: int(os.getenv("AGENTGUARD_RATE_LIMIT", "120")), ge=1)
     rate_limit_window_seconds: int = Field(default_factory=lambda: int(os.getenv("AGENTGUARD_RATE_LIMIT_WINDOW", "60")), ge=1)
 

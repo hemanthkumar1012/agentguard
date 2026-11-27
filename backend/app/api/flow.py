@@ -63,7 +63,8 @@ def _manifest_dict(m: ToolManifest) -> dict:
 
 @router.get("/status")
 def status():
-    return {"mode": flow_engine.mode, "sessions": len(flow_engine.sessions.list()),
+    return {"mode": flow_engine.mode, "label_store": type(flow_engine.sessions).__name__,
+            "sessions": len(flow_engine.sessions.list()),
             "manifests": len(flow_engine.manifests.list()), "destinations": len(flow_engine.destinations.rules)}
 
 
