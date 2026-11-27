@@ -19,6 +19,7 @@ from app.data_inspector import inspect, inspect_outbound
 from app.domain import ActionRequest
 from app.flow.engine import FlowEngine
 from app.flow.labels import Capability as C, ToolManifest
+from app.flow import winnow
 from app.gateway import ToolGateway
 from app.identity import AgentRegistry
 from benchmarks import legacy_inspector
@@ -82,12 +83,14 @@ def latency(iterations: int = 2000) -> list[dict]:
 
     def setup(with_flow: bool, sources: int):
         registry = AgentRegistry()
-        agent = registry.register("bench", "bench", permissions={"read_record", "send_email"})
+        agent = registry.register("bench", "bench", permissions={"read_record", "send_email", "read_secret"})
         flow = None
         if with_flow:
             flow = FlowEngine()
             flow.manifests.register(ToolManifest("crm", "read_record", frozenset({C.READS_PRIVATE}),
                                                  readers=frozenset({"domain:acme.com"})))
+            flow.manifests.register(ToolManifest("vault", "read_secret", frozenset({C.READS_PRIVATE}),
+                                                 readers=frozenset({"internal"})))
         inspector = inspect_outbound if with_flow else (lambda c, p: legacy_inspector.inspect_outbound(c, p))
         gateway = ToolGateway(registry, AuditLedger(), flow=flow, inspector=inspector)
         for i in range(sources if with_flow else 0):
@@ -99,14 +102,19 @@ def latency(iterations: int = 2000) -> list[dict]:
                 "notes": text(400),
                 "id": "".join(rng.choices(string.digits, k=8)),
             })
+        for i in range(20 if with_flow else 0):
+            # tracked secrets make the piece tracker (F5) do its full work on every request
+            read = ActionRequest(agent_id=agent.agent_id, tool="vault", action="read_secret", target="vault")
+            result = gateway.authorize(read)
+            gateway.record_output(read, result.event_id, {"value": "sk" + "_live_" + "".join(rng.choices(string.ascii_letters + string.digits, k=24))})
         return gateway, agent.agent_id
 
     rows = []
     for label, payload_chars, with_flow in [
         ("send_email, 1 KB body: before (legacy inspector, no flow)", 1000, False),
-        ("send_email, 1 KB body: after (inspector + labels + fingerprints, 50 sources indexed)", 1000, True),
+        ("send_email, 1 KB body: after (all rules; 50 outputs fingerprinted, 20 secrets tracked in pieces)", 1000, True),
         ("send_email, 10 KB body: before", 10_000, False),
-        ("send_email, 10 KB body: after (50 sources indexed)", 10_000, True),
+        ("send_email, 10 KB body: after (same state)", 10_000, True),
     ]:
         gateway, agent_id = setup(with_flow, 50)
         body = text(payload_chars)
@@ -116,6 +124,8 @@ def latency(iterations: int = 2000) -> list[dict]:
             gateway.authorize(request)  # warm-up
         timings = []
         for _ in range(iterations):
+            # Same body every run: clear the decode cache so only reuse *within* one request is counted.
+            winnow._decoded_variants.cache_clear()
             start = time.perf_counter_ns()
             gateway.authorize(request)
             timings.append(time.perf_counter_ns() - start)
@@ -157,11 +167,16 @@ def render(metrics: dict, replays: list[dict], timings: list[dict]) -> str:
     add("How to read this:")
     add("")
     add("- *legacy* stops some attacks only because it asked for approval on **any** request containing an email")
-    add("  address, which also stopped most benign work. It missed all three published attacks (GitHub MCP, Supabase")
-    add("  MCP, EchoLeak-style), none of which needs an email address.")
-    add("- *labels* vs *full* isolates the fingerprint index: only fingerprints catch data recalled into a fresh session.")
-    add("- Known gap: `split-exfiltration-from-a-clean-session`. Pieces shorter than the 15-character winnowing")
-    add("  guarantee, sent from a clean session, pass every layer.")
+    add("  address, which also stopped most benign work. It missed all four reconstructions of published attacks")
+    add("  (GitHub MCP, Supabase MCP and two EchoLeak paths), none of which needs an email address.")
+    add("- *labels* vs *full* isolates the evidence layers: only fingerprints catch data recalled into a fresh")
+    add("  session, and only piece tracking (F5) catches a secret sent in 8-character pieces.")
+    add("- `render_output` steps go through `POST /flow/check-output` (rule O1); configurations without data-flow")
+    add("  control have no output check, so EchoLeak's own markdown-image path is missed there.")
+    add("- Known gap: `split-into-3-character-pieces`. Pieces shorter than the 4-character q-grams, sent from a")
+    add("  clean session, pass every layer.")
+    add("- Intended friction: the external accountant email and a raw API key leaving need a human. The better fix")
+    add("  for the second is for the gateway to inject the credential so the agent never holds it.")
     add("- Known false block: `merge-duplicate-customer-accounts`. After reading two customers' records the session")
     add("  may only talk to people allowed to read both (label creep). The fix is to split the work into sessions.")
     add("")

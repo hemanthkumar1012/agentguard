@@ -18,6 +18,7 @@ from __future__ import annotations
 import base64
 import binascii
 from collections import deque
+from functools import lru_cache
 import re
 from urllib.parse import unquote
 
@@ -138,6 +139,13 @@ def _try_hex(token: str) -> str | None:
 
 
 def decoded_variants(text: str, depth: int = MAX_DECODE_DEPTH) -> list[tuple[str, str]]:
+    """See _decoded_variants. Cached: the inspector, the fingerprint index and the piece tracker all decode
+    the same outbound text, which tripled the decoding cost per request (profiled 2026-11-27)."""
+    return list(_decoded_variants(text, depth))
+
+
+@lru_cache(maxsize=16)
+def _decoded_variants(text: str, depth: int = MAX_DECODE_DEPTH) -> tuple[tuple[str, str], ...]:
     """Readable texts hidden in `text` as base64, hex or URL encoding, as (encoding, decoded) pairs.
 
     Random bytes (git SHAs, UUIDs, image data) do not decode to printable UTF-8 and are dropped,
@@ -182,4 +190,4 @@ def decoded_variants(text: str, depth: int = MAX_DECODE_DEPTH) -> list[tuple[str
             visit(decoded, name, level + 1)
 
     visit(text, "", 0)
-    return results
+    return tuple(results)

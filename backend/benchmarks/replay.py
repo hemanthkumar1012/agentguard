@@ -31,6 +31,9 @@ class _NoPieces:
     def observe(self, *args):
         return []
 
+    def observe_all(self, *args):
+        return []
+
 
 @dataclass(frozen=True)
 class StepResult:

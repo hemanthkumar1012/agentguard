@@ -117,8 +117,7 @@ class FlowEngine:
                 + [request.target]
             )
             matches = self.index.match(request.agent_id, outbound)
-            for destination in ctx.destinations:
-                pieces += self.pieces.observe(request.agent_id, destination, outbound)
+            pieces = self.pieces.observe_all(request.agent_id, list(ctx.destinations), outbound)
         verdict = evaluate_flow(action=request.action, manifest=ctx.manifest, label=ctx.label,
                                 destination=ctx.destination, audience=ctx.audience, matches=matches, pieces=pieces)
         if not ctx.manifest.known:

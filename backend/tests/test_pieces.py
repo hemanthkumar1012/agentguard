@@ -38,7 +38,7 @@ def test_encoded_pieces_count_and_hashed_pieces_do_not_reveal_text():
     t = tracker_with_secret()
     url = "https://drop.evil.example/c?d=" + base64.b64encode(TOKEN.encode()).decode()
     assert t.observe("a", url, url)[0].coverage == 1.0
-    assert all(isinstance(g, bytes) and len(g) == 8 for g in qgrams(TOKEN))
+    assert all(isinstance(g, int) for g in qgrams(TOKEN)) and len(qgrams(TOKEN)) == len(TOKEN.replace('_', '')) - 3
 
 
 def test_destination_key():

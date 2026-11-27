@@ -20,10 +20,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
-import hashlib
 import os
 from threading import Lock
 from urllib.parse import urlparse
+
+import numpy as np
+from numpy.lib.stride_tricks import sliding_window_view
 
 from app.flow.winnow import decoded_variants, normalise
 
@@ -36,17 +38,24 @@ MAX_SECRETS_PER_AGENT = 512
 MAX_TRACKED_PAIRS_PER_AGENT = 4096
 
 
-# Overlapping 4-character pieces of a token spell the token out, so they are stored as keyed hashes.
-# The key lives in the same process, so this keeps secrets out of logs and dumps of the structure;
-# it is not protection against someone who can read this process's memory (the plaintext secret
-# passed through the same process anyway).
-_KEY = os.urandom(16)
+# Overlapping 4-character pieces of a token spell the token out, so they are not stored as text: each
+# piece becomes a polynomial hash of its code points, mixed with a random per-process key. That keeps
+# secrets out of logs and dumps of the structure; it is not protection against someone who can read
+# this process's memory (the key is there too, and the plaintext secret passed through anyway).
+# Vectorised with numpy: hashing each piece with blake2b cost about 7 ms per 10 KB request.
+_KEY = np.uint64(int.from_bytes(os.urandom(8), "little"))
+_MIX = np.uint64(0x9E3779B97F4A7C15)
+_POWERS = np.array([1_000_003 ** (Q - 1 - j) % (1 << 64) for j in range(Q)], dtype=np.uint64)
 
 
-def qgrams(text: str) -> set[bytes]:
+def qgrams(text: str) -> set[int]:
     normalised = normalise(text)
-    return {hashlib.blake2b(normalised[i:i + Q].encode(), digest_size=8, key=_KEY).digest()
-            for i in range(len(normalised) - Q + 1)}
+    if len(normalised) < Q:
+        return set()
+    codes = np.frombuffer(normalised.encode("utf-32-le"), dtype=np.uint32).astype(np.uint64)
+    with np.errstate(over="ignore"):
+        hashed = ((sliding_window_view(codes, Q) @ _POWERS) ^ _KEY) * _MIX
+    return set(np.unique(hashed).tolist())
 
 
 def destination_key(destination: str) -> str:
@@ -66,12 +75,12 @@ class Secret:
     tool: str
     action: str
     readers: frozenset[str]
-    grams: frozenset[bytes]
+    grams: frozenset[int]
 
 
 @dataclass
 class Exposure:
-    covered: set[bytes] = field(default_factory=set)
+    covered: set[int] = field(default_factory=set)
     requests: int = 0
     first_seen: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
@@ -92,7 +101,7 @@ class PieceMatch:
 class SecretPieceTracker:
     def __init__(self) -> None:
         self._secrets: dict[str, dict[str, Secret]] = {}
-        self._by_gram: dict[str, dict[bytes, set[str]]] = {}
+        self._by_gram: dict[str, dict[int, set[str]]] = {}
         self._exposure: dict[str, dict[tuple[str, str], Exposure]] = {}
         self._lock = Lock()
 
@@ -114,19 +123,32 @@ class SecretPieceTracker:
                 by_gram.setdefault(gram, set()).add(secret_id)
         return True
 
+    def has_secrets(self, agent_id: str) -> bool:
+        return bool(self._secrets.get(agent_id))
+
     def observe(self, agent_id: str, destination: str, text: str) -> list[PieceMatch]:
-        """Records the pieces in `text` as sent to `destination`; returns secrets now mostly exposed there."""
-        key = destination_key(destination)
-        sent: set[bytes] = set(qgrams(text))
+        return self.observe_all(agent_id, [destination], text)
+
+    def observe_all(self, agent_id: str, destinations: list[str], text: str) -> list[PieceMatch]:
+        """Records the pieces in `text` as sent to each destination; returns secrets now mostly exposed there."""
+        if not self.has_secrets(agent_id):
+            return []     # nothing tracked for this agent: skip hashing the request entirely
+        sent: set[int] = set(qgrams(text))
         for _, decoded in decoded_variants(text):
             sent |= qgrams(decoded)
+        matches: list[PieceMatch] = []
+        for destination in destinations:
+            matches += self._record(agent_id, destination_key(destination), sent)
+        return sorted(matches, key=lambda m: m.coverage, reverse=True)
+
+    def _record(self, agent_id: str, key: str, sent: set[int]) -> list[PieceMatch]:
         now = datetime.now(timezone.utc)
         matches: list[PieceMatch] = []
         with self._lock:
             secrets = self._secrets.get(agent_id, {})
             by_gram = self._by_gram.get(agent_id, {})
             exposure = self._exposure.setdefault(agent_id, {})
-            touched: dict[str, set[bytes]] = {}
+            touched: dict[str, set[int]] = {}
             for gram in sent:
                 for secret_id in by_gram.get(gram, ()):
                     touched.setdefault(secret_id, set()).add(gram)
@@ -145,4 +167,4 @@ class SecretPieceTracker:
                 coverage = len(record.covered) / len(secret.grams)
                 if coverage > COVERAGE_THRESHOLD:
                     matches.append(PieceMatch(secret, key, coverage, record.requests))
-        return sorted(matches, key=lambda m: m.coverage, reverse=True)
+        return matches
