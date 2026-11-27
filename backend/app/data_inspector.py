@@ -25,6 +25,9 @@ import re
 from typing import Callable
 
 from app.flow.winnow import _try_base64, decoded_variants
+from app.vault import HANDLE
+
+SECRET_HANDLE_PLACEHOLDER = "[secret-handle]"
 
 HIGH = "high"
 LOW = "low"
@@ -220,6 +223,9 @@ def _result(findings: list[str]) -> dict:
 
 
 def inspect(text: str) -> dict:
+    # {{secret:name}} handles are placeholders the gateway resolves at execution (app/vault.py); the
+    # word "secret:" inside them matched the secret_marker detector before this line.
+    text = HANDLE.sub(SECRET_HANDLE_PLACEHOLDER, text)
     findings = _scan(text)
     for encoding, decoded in decoded_variants(text):
         findings += [f"{name}:{encoding}" for name in _scan(decoded)]

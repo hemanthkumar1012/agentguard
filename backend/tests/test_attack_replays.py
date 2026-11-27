@@ -41,10 +41,10 @@ def test_only_labels_catch_a_paraphrase():
 
 
 def test_benign_friction_budget():
-    # Two intended approvals (external accountant, raw API key leaving) and one known false block (label creep).
+    # One intended approval (external accountant) and one known false block (label creep).
     outcomes = [outcome(t, replay(t, "full")) for t in BENIGN]
     assert outcomes.count("blocked") <= 1
-    assert outcomes.count("approval") <= 2
+    assert outcomes.count("approval") <= 1
 
 
 def test_detector_quality_does_not_regress():

@@ -13,6 +13,7 @@ from app.identity import AgentRegistry, AgentStatus
 from app.opa_client import PolicyEngineUnavailable, decide as opa_decide
 from app.policy import evaluate
 from app.risk import assess
+from app.vault import SecretVault, handles_in
 
 
 SENSITIVE_OUTBOUND_REASON = "Sensitive data was found in the outbound request, so a human must approve it."
@@ -37,13 +38,14 @@ class ToolGateway:
 
     def __init__(self, registry: AgentRegistry, audit: AuditLedger, credentials=None,
                  approvals: ApprovalStore | None = None, flow: FlowEngine | None = None,
-                 inspector: Inspector = inspect_outbound) -> None:
+                 inspector: Inspector = inspect_outbound, vault: SecretVault | None = None) -> None:
         self.registry = registry
         self.audit = audit
         self.credentials = credentials
         self.approvals = approvals
         self.flow = flow
         self.inspector = inspector
+        self.vault = vault
 
     def authorize(self, request: ActionRequest, consume_approval: bool = False) -> GatewayResult:
         agent = self.registry.get(request.agent_id)
@@ -65,6 +67,10 @@ class ToolGateway:
             else:
                 response = self._blocked(request, "Session does not exist, is closed, or belongs to another agent.")
             flow_rule = "F0"
+        elif self.vault is not None and (secret_problem := self._secret_problem(request)) is not None:
+            response = self._blocked(request, secret_problem)
+            factors = ["secret-handle-misuse"]
+            flow_rule = "S1"
         elif request.tool and self.credentials and (not request.credential_id or not request.credential_token):
             response = self._blocked(request, "Tool execution requires a scoped credential and token.")
         elif request.tool and self.credentials and not self.credentials.validate(
@@ -156,6 +162,23 @@ class ToolGateway:
             return "valid" if self.flow.session_valid(request) else "invalid"
         except FlowStateUnavailable:
             return "unavailable"
+
+    def _secret_problem(self, request: ActionRequest) -> str | None:
+        extra = [request.content or "", request.target]
+        if not (handles_in(request.execution_payload) or handles_in(extra)):
+            return None
+        destinations = self.flow.destination_list(request) if self.flow is not None else [request.target]
+        return self.vault.check(request.agent_id, request.execution_payload, extra, destinations)
+
+    def prepare_execution(self, request: ActionRequest) -> dict:
+        """The payload the tool receives: secret handles replaced by real values (allowed requests only)."""
+        return self.vault.inject(request.execution_payload) if self.vault is not None else request.execution_payload
+
+    def finish_execution(self, request: ActionRequest, event_id: str, output) -> tuple[object, dict]:
+        """What the agent receives: secrets scrubbed back to handles, private data labelled."""
+        if self.vault is not None:
+            output = self.vault.scrub(output)
+        return output, self.record_output(request, event_id, output)
 
     def record_output(self, request: ActionRequest, event_id: str, output) -> dict:
         """Called after AgentGuard executed an allowed tool, with what the tool returned."""

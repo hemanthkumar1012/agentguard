@@ -13,6 +13,7 @@ from app.flow.output import check_output
 from app.flow.engine import default_manifests
 from app.gateway import ToolGateway
 from app.identity import AgentRegistry
+from app.vault import SecretVault
 from benchmarks import legacy_inspector
 from benchmarks.traces import Trace
 
@@ -59,7 +60,12 @@ def _gateway(trace: Trace, config: str, sessions=None) -> tuple[ToolGateway, str
         pieces = _NoPieces() if config == "labels" else None
         flow = FlowEngine(manifests=manifests, destinations=destinations, index=index, sessions=sessions, pieces=pieces)
     inspector = (lambda c, p: legacy_inspector.inspect_outbound(c, p)) if config == "legacy" else inspect_outbound
-    return ToolGateway(registry, AuditLedger(), flow=flow, inspector=inspector), agent.agent_id, flow
+    vault = None
+    if trace.secrets and config in {"labels", "full"}:
+        vault = SecretVault()
+        for name, value, allowed in trace.secrets:
+            vault.put(name, value, list(allowed), ["*"])
+    return ToolGateway(registry, AuditLedger(), flow=flow, inspector=inspector, vault=vault), agent.agent_id, flow
 
 
 def replay(trace: Trace, config: str, sessions=None) -> list[StepResult]:

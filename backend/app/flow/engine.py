@@ -89,6 +89,10 @@ class FlowEngine:
             return [str(part).strip() for part in value if str(part).strip()]
         return [request.target]
 
+    def destination_list(self, request: ActionRequest) -> list[str]:
+        """Where this request sends data, per its tool manifest (payload field) or its target."""
+        return self._destinations_of(request, self.manifests.resolve(request.tool, request.action))
+
     def context(self, request: ActionRequest) -> FlowContext | None:
         label = self.sessions.resolve(request.agent_id, request.session_id)
         if label is None:

@@ -50,7 +50,8 @@ class MCPGateway:
             return {"executed": False, "decision": decision.decision.model_dump(mode="json"), "event_id": decision.event_id}
 
         try:
-            result = self.runtime.execute(request.agent_id, request.tool, request.action, request.arguments)
+            result = self.runtime.execute(request.agent_id, request.tool, request.action,
+                                          tool_gateway.prepare_execution(action_request))
         except KeyError:
             self._record_execution_error(request, decision.decision.risk_score, "Requested tool handler is not registered.")
             raise
@@ -59,7 +60,7 @@ class MCPGateway:
             raise RuntimeError("Tool execution failed") from exc
 
         try:
-            learned = tool_gateway.record_output(action_request, decision.event_id, result.output)
+            tool_output, learned = tool_gateway.finish_execution(action_request, decision.event_id, result.output)
         except FlowStateUnavailable as exc:
             self._record_execution_error(request, decision.decision.risk_score, "Tool output withheld: session label unavailable.")
             raise RuntimeError("Tool output withheld: session labels unavailable") from exc
@@ -67,7 +68,7 @@ class MCPGateway:
             "executed": True,
             "decision": decision.decision.model_dump(mode="json"),
             "event_id": decision.event_id,
-            "result": result.output,
+            "result": tool_output,
             "flow": learned,
         }
 

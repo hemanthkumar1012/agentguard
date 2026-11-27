@@ -17,6 +17,7 @@ from app.api.mcp import router as mcp_router
 from app.api.security import router as security_router
 from app.api.simulator import router as simulator_router
 from app.api.tools import router as tools_router
+from app.api.vault import router as vault_router
 from app.config import settings
 from app.rate_limit import RateLimiter
 from app.operator_auth import authenticate, can_access
@@ -127,3 +128,4 @@ app.include_router(control_plane_router, prefix="/api/v1")
 app.include_router(approvals_router, prefix="/api/v1")
 app.include_router(delegations_router, prefix="/api/v1")
 app.include_router(flow_router, prefix="/api/v1")
+app.include_router(vault_router, prefix="/api/v1")

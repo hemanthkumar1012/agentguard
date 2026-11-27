@@ -5,6 +5,7 @@ from app.credentials import CredentialBroker
 from app.flow.engine import FlowEngine
 from app.gateway import ToolGateway
 from app.identity import AgentRegistry
+from app.vault import SecretVault
 from app.supabase_store import SupabaseStore
 
 
@@ -24,4 +25,6 @@ def _session_store():
 
 
 flow_engine = FlowEngine(mode=settings.flow_mode, sessions=_session_store())
-tool_gateway = ToolGateway(agent_registry, audit_ledger, credential_broker, approval_store, flow=flow_engine)
+secret_vault = SecretVault()
+tool_gateway = ToolGateway(agent_registry, audit_ledger, credential_broker, approval_store, flow=flow_engine,
+                           vault=secret_vault)

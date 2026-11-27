@@ -70,7 +70,8 @@ def execute_tool(request: ToolExecutionRequest):
         return {"executed": False, "decision": authorization.decision, "event_id": authorization.event_id}
 
     try:
-        result = runtime.execute(request.agent_id, request.tool, request.action, request.payload)
+        result = runtime.execute(request.agent_id, request.tool, request.action,
+                                 tool_gateway.prepare_execution(action_request))
     except KeyError as exc:
         record_execution_error(request, authorization.decision.risk_score, "Requested tool handler is not registered.")
         raise HTTPException(status_code=404, detail=str(exc)) from exc
@@ -80,7 +81,7 @@ def execute_tool(request: ToolExecutionRequest):
 
     # AgentGuard ran the tool, so it can label what came back (private data gets fingerprinted).
     try:
-        learned = tool_gateway.record_output(action_request, authorization.event_id, result.output)
+        tool_output, learned = tool_gateway.finish_execution(action_request, authorization.event_id, result.output)
     except FlowStateUnavailable as exc:
         # The tool ran, but its output could not be labelled; handing it over would leave the label clean.
         record_execution_error(request, authorization.decision.risk_score, "Tool output withheld: session label unavailable.")
@@ -89,6 +90,6 @@ def execute_tool(request: ToolExecutionRequest):
         "executed": True,
         "decision": authorization.decision,
         "event_id": authorization.event_id,
-        "tool_result": result.output,
+        "tool_result": tool_output,
         "flow": learned,
     }
