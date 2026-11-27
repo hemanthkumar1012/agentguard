@@ -39,6 +39,7 @@ class ApprovalStore:
             "tool": request.tool,
             "credential_id": request.credential_id,
             "correlation_id": request.correlation_id,
+            "session_id": getattr(request, "session_id", None),
             "execution_payload": request.execution_payload,
         }
         canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"), default=str)

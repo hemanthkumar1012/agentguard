@@ -1,0 +1,81 @@
+"""Replays traces through a fresh gateway under different configurations."""
+from __future__ import annotations
+
+from dataclasses import dataclass
+
+from app.audit import AuditLedger
+from app.data_inspector import inspect_outbound
+from app.domain import ActionRequest, Decision
+from app.flow.engine import FlowEngine
+from app.flow.fingerprints import FingerprintIndex
+from app.flow.labels import DestinationRegistry, ManifestRegistry
+from app.flow.engine import default_manifests
+from app.gateway import ToolGateway
+from app.identity import AgentRegistry
+from benchmarks import legacy_inspector
+from benchmarks.traces import Trace
+
+CONFIGS = {
+    "legacy": "before this change: old regex inspector, no data-flow rules",
+    "inspector": "new inspector only (validators, decoding, severities), no data-flow rules",
+    "labels": "new inspector + session labels (rules F1, F2, F4), fingerprints off",
+    "full": "new inspector + session labels + fingerprints (all rules)",
+}
+
+
+@dataclass(frozen=True)
+class StepResult:
+    tool: str
+    action: str
+    session: str
+    decision: Decision
+    rule: str | None
+    reason: str
+    exit: bool
+
+
+def _gateway(trace: Trace, config: str) -> tuple[ToolGateway, str, FlowEngine | None]:
+    registry = AgentRegistry()
+    agent = registry.register("bench", "bench", permissions={s.action for s in trace.steps})
+    flow = None
+    if config in {"labels", "full"}:
+        manifests = ManifestRegistry(default_manifests() + list(trace.manifests))
+        destinations = DestinationRegistry()
+        for pattern, audience in trace.destinations:
+            destinations.register(pattern, audience)
+        index = FingerprintIndex(min_shared=10**9) if config == "labels" else FingerprintIndex()
+        flow = FlowEngine(manifests=manifests, destinations=destinations, index=index)
+    inspector = (lambda c, p: legacy_inspector.inspect_outbound(c, p)) if config == "legacy" else inspect_outbound
+    return ToolGateway(registry, AuditLedger(), flow=flow, inspector=inspector), agent.agent_id, flow
+
+
+def replay(trace: Trace, config: str) -> list[StepResult]:
+    gateway, agent_id, flow = _gateway(trace, config)
+    sessions: dict[str, str | None] = {}
+    results: list[StepResult] = []
+    for step in trace.steps:
+        if step.session not in sessions:
+            sessions[step.session] = flow.sessions.create(agent_id, step.session).session_id if flow else None
+        request = ActionRequest(
+            agent_id=agent_id, tool=step.tool, action=step.action, target=step.target or step.tool,
+            data_classification="public", risk_score=0,       # the agent claims the most convenient labels
+            execution_payload=step.payload, session_id=sessions[step.session],
+        )
+        result = gateway.authorize(request)
+        if result.decision.decision == Decision.ALLOW and step.output is not None:
+            gateway.record_output(request, result.event_id, step.output)
+        results.append(StepResult(step.tool, step.action, step.session, result.decision.decision,
+                                  result.decision.flow_rule, result.decision.reason, step.exit))
+    return results
+
+
+def outcome(trace: Trace, results: list[StepResult]) -> str:
+    if trace.kind == "attack":
+        exits = [r for r in results if r.exit]
+        return "stopped" if any(r.decision != Decision.ALLOW for r in exits) else "missed"
+    worst = max(results, key=lambda r: {Decision.ALLOW: 0, Decision.REQUIRE_APPROVAL: 1, Decision.BLOCK: 2}[r.decision])
+    return {Decision.ALLOW: "allow", Decision.REQUIRE_APPROVAL: "approval", Decision.BLOCK: "blocked"}[worst.decision]
+
+
+def stopping_step(results: list[StepResult]) -> StepResult | None:
+    return next((r for r in results if r.decision != Decision.ALLOW), None)

@@ -17,6 +17,8 @@ class Settings(BaseModel):
     supabase_service_key: str | None = os.getenv("SUPABASE_SERVICE_KEY")
     # optional OPA server, e.g. http://localhost:8181; empty means the Python policy is used
     opa_url: str | None = os.getenv("AGENTGUARD_OPA_URL") or None
+    # data-flow rules: enforce (default), monitor (record what would happen, change nothing) or off
+    flow_mode: str = os.getenv("AGENTGUARD_FLOW_MODE", "enforce").strip().lower()
     rate_limit_requests: int = Field(default_factory=lambda: int(os.getenv("AGENTGUARD_RATE_LIMIT", "120")), ge=1)
     rate_limit_window_seconds: int = Field(default_factory=lambda: int(os.getenv("AGENTGUARD_RATE_LIMIT_WINDOW", "60")), ge=1)
 

@@ -32,7 +32,7 @@ class BehaviorBaseline:
         if anomalous:
             reason = "Tool-call rate is materially outside the agent baseline."
         else:
-            reason = "Tool-call rate is within the learned baseline range."
+            reason = "Tool-call rate is within the configured baseline range."
         return AnomalyAssessment(score=score, is_anomalous=anomalous, reason=reason)
 
 

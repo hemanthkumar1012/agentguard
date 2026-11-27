@@ -26,6 +26,7 @@ class ToolExecutionRequest(BaseModel):
     content: str | None = Field(default=None, max_length=100_000)
     correlation_id: str | None = Field(default=None, min_length=1, max_length=100)
     approval_id: str | None = Field(default=None, min_length=1, max_length=100)
+    session_id: str | None = Field(default=None, min_length=1, max_length=100)
     payload: dict = Field(default_factory=dict)
 
 
@@ -47,23 +48,22 @@ def record_execution_error(request: ToolExecutionRequest, risk_score: float, rea
 
 @router.post("/execute")
 def execute_tool(request: ToolExecutionRequest):
-    authorization = tool_gateway.authorize(
-        ActionRequest(
-            agent_id=request.agent_id,
-            action=request.action,
-            target=request.target,
-            data_classification=request.data_classification,
-            risk_score=request.risk_score,
-            content=request.content,
-            tool=request.tool,
-            credential_id=request.credential_id,
-            credential_token=request.credential_token,
-            correlation_id=request.correlation_id,
-            approval_id=request.approval_id,
-            execution_payload=request.payload,
-        ),
-        consume_approval=True,
+    action_request = ActionRequest(
+        agent_id=request.agent_id,
+        action=request.action,
+        target=request.target,
+        data_classification=request.data_classification,
+        risk_score=request.risk_score,
+        content=request.content,
+        tool=request.tool,
+        credential_id=request.credential_id,
+        credential_token=request.credential_token,
+        correlation_id=request.correlation_id,
+        approval_id=request.approval_id,
+        session_id=request.session_id,
+        execution_payload=request.payload,
     )
+    authorization = tool_gateway.authorize(action_request, consume_approval=True)
 
     if authorization.decision.decision != Decision.ALLOW:
         return {"executed": False, "decision": authorization.decision, "event_id": authorization.event_id}
@@ -77,9 +77,12 @@ def execute_tool(request: ToolExecutionRequest):
         record_execution_error(request, authorization.decision.risk_score, "Authorized tool execution failed.")
         raise HTTPException(status_code=502, detail="Tool execution failed") from exc
 
+    # AgentGuard ran the tool, so it can label what came back (private data gets fingerprinted).
+    learned = tool_gateway.record_output(action_request, authorization.event_id, result.output)
     return {
         "executed": True,
         "decision": authorization.decision,
         "event_id": authorization.event_id,
         "tool_result": result.output,
+        "flow": learned,
     }
